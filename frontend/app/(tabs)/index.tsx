@@ -24,8 +24,10 @@ import * as Location from 'expo-location';
 import {
   calculateJumpLocally,
   CalculationResult,
+  applyMotorcycleAdjustmentsToResult,
   fetchJsonWithBackend,
   getDeviceId,
+  getSelectedMotorcycle,
   getEmergencyDeviceId,
   getEmergencySettings,
   getLastNearbyAlertSentAt,
@@ -178,6 +180,9 @@ export default function Index() {
       } else {
         data = calculateJumpLocally(inputData);
       }
+
+      const selectedMotorcycle = await getSelectedMotorcycle();
+      data = applyMotorcycleAdjustmentsToResult(data, selectedMotorcycle);
 
       setResult(data);
       // Start animation
