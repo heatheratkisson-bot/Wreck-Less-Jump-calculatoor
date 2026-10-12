@@ -1,5 +1,13 @@
 import { Platform } from 'react-native';
 
+import {
+  DEFAULT_MOTORCYCLE,
+  MotorcycleModel,
+  calculateAccelerationFactor,
+  calculateTorqueBonus,
+  getMotorcyclesByBrand,
+} from './motorcycleData';
+
 export interface TrialInfo {
   is_trial_active: boolean;
   trial_started_at?: string;
@@ -78,6 +86,7 @@ export interface MapLocation {
 
 const LOCAL_SAVED_CALCULATIONS_KEY = 'wreckless_saved_calculations_v1';
 const DEVICE_ID_STORAGE_KEY = 'device_id';
+const MOTORCYCLE_PROFILE_STORAGE_KEY = 'wreckless_selected_motorcycle_v1';
 // Emergency-specific identifier and secret. These are intentionally never sent or stored
 // alongside the general device_id above, and never returned by any backend endpoint, so a
 // share-code holder who learns device_id (via GET /api/shared/{share_code}) cannot use it
@@ -216,6 +225,58 @@ export async function getDeviceId(): Promise<string> {
   const nextDeviceId = await createDeviceId();
   await storage.setItem(DEVICE_ID_STORAGE_KEY, nextDeviceId);
   return nextDeviceId;
+}
+
+export async function getSelectedMotorcycle(): Promise<MotorcycleModel> {
+  const savedId = await getStoredJson<string | null>(MOTORCYCLE_PROFILE_STORAGE_KEY, null);
+  if (!savedId) {
+    return DEFAULT_MOTORCYCLE;
+  }
+
+  const allMotorcycles = getMotorcyclesByBrand();
+  return allMotorcycles.find((motorcycle) => motorcycle.id === savedId) ?? DEFAULT_MOTORCYCLE;
+}
+
+export async function saveSelectedMotorcycle(motorcycle: MotorcycleModel | null): Promise<void> {
+  if (!motorcycle) {
+    await setStoredJson(MOTORCYCLE_PROFILE_STORAGE_KEY, null);
+    return;
+  }
+
+  await setStoredJson(MOTORCYCLE_PROFILE_STORAGE_KEY, motorcycle.id);
+}
+
+export function applyMotorcycleAdjustmentsToResult(
+  result: CalculationResult,
+  motorcycle: MotorcycleModel
+): CalculationResult {
+  if (!motorcycle || motorcycle.id === DEFAULT_MOTORCYCLE.id) {
+    return result;
+  }
+
+  const accelerationFactor = calculateAccelerationFactor(motorcycle);
+  const torqueBonus = calculateTorqueBonus(motorcycle);
+  const adjustedRequiredSpeedMph = Math.max(
+    0,
+    result.required_speed_mph / accelerationFactor + torqueBonus * 0.25
+  );
+
+  const adjustedRequiredSpeedKph = adjustedRequiredSpeedMph * 1.60934;
+  const adjustedSafetyMph = adjustedRequiredSpeedMph * 1.15;
+  const adjustedSafetyKph = adjustedSafetyMph * 1.60934;
+
+  return {
+    ...result,
+    required_speed_mph: Number(adjustedRequiredSpeedMph.toFixed(2)),
+    required_speed_kph: Number(adjustedRequiredSpeedKph.toFixed(2)),
+    required_speed_fps: Number((adjustedRequiredSpeedMph * 1.4667).toFixed(2)),
+    safety_speed_mph: Number(adjustedSafetyMph.toFixed(2)),
+    safety_speed_kph: Number(adjustedSafetyKph.toFixed(2)),
+    warnings: [
+      ...result.warnings,
+      `${motorcycle.brand} ${motorcycle.model} (${motorcycle.engineCC}cc, ${motorcycle.torque_ft_lbs} ft-lb torque, ${motorcycle.weight_lbs} lb dry weight) is influencing the jump profile.`,
+    ],
+  };
 }
 
 // The emergency_device_id is separate from the general device_id above: it is generated
@@ -407,15 +468,12 @@ const finalizeCalculation = (
   const gravity = 32.174;
   const speedMph = speedFeetPerSecond * 0.681818;
   const speedKph = speedFeetPerSecond * 1.09728;
-  const flightTime =
-    gapDistanceFeet / (speedFeetPerSecond * Math.cos(angleRadians));
+  const flightTime = gapDistanceFeet / (speedFeetPerSecond * Math.cos(angleRadians));
   const verticalVelocity = speedFeetPerSecond * Math.sin(angleRadians);
   const maxHeightFeet = (verticalVelocity ** 2) / (2 * gravity);
   const landingVelocityTerm = speedFeetPerSecond ** 2 - 2 * gravity * landingHeightFeet;
   const landingVelocityFeetPerSecond =
-    landingVelocityTerm > 0
-      ? Math.sqrt(landingVelocityTerm)
-      : speedFeetPerSecond;
+    landingVelocityTerm > 0 ? Math.sqrt(landingVelocityTerm) : speedFeetPerSecond;
 
   return {
     required_speed_fps: Number(speedFeetPerSecond.toFixed(2)),
@@ -461,23 +519,13 @@ export function calculateJumpLocally(inputData: JumpCalculationInput): Calculati
   }
 
   const gapDistanceFeet =
-    inputData.unit_system === 'metric'
-      ? inputData.gap_distance * 3.28084
-      : inputData.gap_distance;
+    inputData.unit_system === 'metric' ? inputData.gap_distance * 3.28084 : inputData.gap_distance;
   const landingHeightFeet =
-    inputData.unit_system === 'metric'
-      ? inputData.landing_height * 3.28084
-      : inputData.landing_height;
+    inputData.unit_system === 'metric' ? inputData.landing_height * 3.28084 : inputData.landing_height;
   const rampHeightFeet =
-    inputData.unit_system === 'metric'
-      ? inputData.ramp_height * 3.28084
-      : inputData.ramp_height;
+    inputData.unit_system === 'metric' ? inputData.ramp_height * 3.28084 : inputData.ramp_height;
 
-  const calculation = calculateJumpSpeed(
-    inputData.ramp_angle,
-    gapDistanceFeet,
-    landingHeightFeet
-  );
+  const calculation = calculateJumpSpeed(inputData.ramp_angle, gapDistanceFeet, landingHeightFeet);
 
   if (calculation.required_speed_mph > 60) {
     warnings.push(
@@ -588,8 +636,7 @@ export async function lookupSharedCalculationLocally(
   return (
     calculations.find(
       (calculation) =>
-        calculation.is_shared &&
-        calculation.share_code?.toUpperCase() === shareCode.toUpperCase()
+        calculation.is_shared && calculation.share_code?.toUpperCase() === shareCode.toUpperCase()
     ) ?? null
   );
 }
