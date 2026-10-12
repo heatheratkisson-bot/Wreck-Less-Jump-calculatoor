@@ -264,6 +264,9 @@ export function applyMotorcycleAdjustmentsToResult(
   const adjustedRequiredSpeedKph = adjustedRequiredSpeedMph * 1.60934;
   const adjustedSafetyMph = adjustedRequiredSpeedMph * 1.15;
   const adjustedSafetyKph = adjustedSafetyMph * 1.60934;
+  const filteredWarnings = result.warnings.filter(
+    (warning) => !warning.includes('influencing the jump profile.')
+  );
 
   return {
     ...result,
@@ -273,7 +276,7 @@ export function applyMotorcycleAdjustmentsToResult(
     safety_speed_mph: Number(adjustedSafetyMph.toFixed(2)),
     safety_speed_kph: Number(adjustedSafetyKph.toFixed(2)),
     warnings: [
-      ...result.warnings,
+      ...filteredWarnings,
       `${motorcycle.brand} ${motorcycle.model} (${motorcycle.engineCC}cc, ${motorcycle.torque_ft_lbs} ft-lb torque, ${motorcycle.weight_lbs} lb dry weight) is influencing the jump profile.`,
     ],
   };
