@@ -23,6 +23,10 @@ const MapIcon = ({ color, size }: TabIconProps) => (
   <Ionicons name="map" size={size} color={color} />
 );
 
+const ProfileIcon = ({ color, size }: TabIconProps) => (
+  <Ionicons name="person" size={size} color={color} />
+);
+
 export default function TabLayout() {
   const { isSubscribed, isLoading, isTrial, trialInfo } = useSubscription();
 
@@ -99,6 +103,13 @@ export default function TabLayout() {
           options={{
             title: 'Map',
             tabBarIcon: MapIcon,
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ProfileIcon,
           }}
         />
       </Tabs>
