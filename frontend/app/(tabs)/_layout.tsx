@@ -23,8 +23,8 @@ const MapIcon = ({ color, size }: TabIconProps) => (
   <Ionicons name="map" size={size} color={color} />
 );
 
-const ProfileIcon = ({ color, size }: TabIconProps) => (
-  <Ionicons name="person" size={size} color={color} />
+const EmergencyIcon = ({ color, size }: TabIconProps) => (
+  <Ionicons name="heart" size={size} color={color} />
 );
 
 export default function TabLayout() {
@@ -106,10 +106,10 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="profile"
+          name="emergency-settings"
           options={{
-            title: 'Profile',
-            tabBarIcon: ProfileIcon,
+            title: 'Emergency',
+            tabBarIcon: EmergencyIcon,
           }}
         />
       </Tabs>
