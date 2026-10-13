@@ -2,22 +2,45 @@ name: Android APK CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: ["main", "master", "wreckless-final-product"]
   pull_request:
-    branches: [ "main", "master" ]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
+
+concurrency:
+  group: android-apk-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  build-apk:
-    name: Build Debug APK
+  build-android:
+    name: Build Android APKs
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: yarn install
+
+      - name: Prebuild Android
+        working-directory: frontend
+        run: npx expo prebuild --platform android
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -48,7 +71,7 @@ jobs:
         working-directory: frontend/android
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK artifact(s)
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
