@@ -640,7 +640,7 @@ export default function Index() {
           {/* Header */}
           <View style={styles.header}>
             <Image
-              source={require('../../assets/images/wreckless-logo.png')}
+              source={require('../../assets/images/wreckless-logo.jpg')}
               style={styles.headerLogo}
               resizeMode="contain"
             />
@@ -1103,7 +1103,7 @@ const styles = StyleSheet.create({
   },
   headerLogo: {
     width: 250,
-    height: 140,
+    height: 137,
   },
   title: {
     fontSize: 26,

@@ -136,7 +136,7 @@ export default function PaywallScreen() {
         {/* Logo/Header */}
         <View style={styles.header}>
           <Image
-            source={require('../assets/images/wreckless-logo.png')}
+            source={require('../assets/images/wreckless-logo.jpg')}
             style={styles.logo}
             resizeMode="contain"
           />
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: 280,
-    height: 200,
+    height: 153,
     marginBottom: 8,
   },
   featuresContainer: {

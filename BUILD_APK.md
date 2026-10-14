@@ -10,8 +10,8 @@ Before you begin, make sure you have the following installed:
 
 | Tool | Version | Install |
 |------|---------|---------|
-| Node.js | 18 or later | https://nodejs.org |
-| npm / yarn | latest | bundled with Node.js |
+| Node.js | 22.13+ or 24.3+ | https://nodejs.org |
+| npm | 11.17.0 | bundled with Node.js |
 | EAS CLI | latest | `npm install -g eas-cli` |
 | Expo account | free | https://expo.dev/signup |
 
@@ -52,7 +52,7 @@ Accept all defaults. This links the project to your Expo account.
 ### Step 5 – Build the APK
 
 ```bash
-yarn build:apk:cloud
+npm run build:apk:cloud
 # or
 eas build --platform android --profile preview
 ```
@@ -82,13 +82,13 @@ Build the APK entirely on your own machine. Requires Android SDK / Android Studi
 
 ```bash
 cd frontend
-yarn install
+npm ci
 ```
 
 ### Step 2 – Run the local EAS build
 
 ```bash
-yarn build:apk
+npm run build:apk
 # or
 eas build --platform android --profile preview --local
 ```
@@ -112,7 +112,7 @@ For quick development testing without building an APK:
 1. Install **Expo Go** from the Google Play Store on your Android device.
 2. From the `frontend/` directory, run:
    ```bash
-   yarn start
+   npm start
    ```
 3. Scan the QR code shown in the terminal with the Expo Go app.
 

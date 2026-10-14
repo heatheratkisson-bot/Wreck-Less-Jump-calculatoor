@@ -17,8 +17,8 @@ backend/    – Python API server
 cd frontend
 npm install -g eas-cli
 eas login
-yarn install
-yarn build:apk:cloud
+npm ci
+npm run build:apk:cloud
 ```
 
 A download link and QR code will be provided when the build finishes.
@@ -29,9 +29,9 @@ For detailed instructions (local build, CI/CD, troubleshooting), see **[BUILD_AP
 
 ```bash
 cd frontend
-yarn install
-yarn start        # opens Expo dev server
-yarn android      # opens on connected Android device / emulator
+npm ci
+npm start         # opens Expo dev server
+npm run android   # opens on connected Android device / emulator
 ```
 
 ## Backend
