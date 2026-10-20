@@ -1,7 +1,7 @@
 import React from 'react';
-import { Tabs, Redirect } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, ActivityIndicator, View, Text, StyleSheet, type ColorValue } from 'react-native';
+import { Platform, View, Text, StyleSheet, type ColorValue } from 'react-native';
 import { useSubscription } from '../_layout';
 
 // Tab bar icon components defined outside of render
@@ -28,21 +28,7 @@ const ProfileIcon = ({ color, size }: TabIconProps) => (
 );
 
 export default function TabLayout() {
-  const { isSubscribed, isLoading, isTrial, trialInfo } = useSubscription();
-
-  // Show loading while checking subscription
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
-        <ActivityIndicator size="large" color="#FF6B35" />
-      </View>
-    );
-  }
-
-  // Redirect to paywall if not subscribed and not on trial
-  if (!isSubscribed) {
-    return <Redirect href="/paywall" />;
-  }
+  const { isTrial, trialInfo } = useSubscription();
 
   return (
     <View style={{ flex: 1 }}>
@@ -55,7 +41,7 @@ export default function TabLayout() {
           </Text>
         </View>
       )}
-      
+
       <Tabs
         initialRouteName="index"
         screenOptions={{
