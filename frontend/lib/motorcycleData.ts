@@ -357,7 +357,7 @@ export const motorcycleDatabase: Record<string, MotorcycleModel[]> = {
       weight_lbs: 227,
       horsepower: 31.0,
       type: 'Motocross',
-      description: 'Late-90s two-stroke racer's favorite',
+      description: "Late-90s two-stroke racer's favorite",
     },
   ],
   Suzuki: [
