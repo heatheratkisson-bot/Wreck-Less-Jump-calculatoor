@@ -52,14 +52,14 @@ export default function Index() {
   const [bikeWeight, setBikeWeight] = useState('');
   const [riderWeight, setRiderWeight] = useState('');
   const [landingHeight, setLandingHeight] = useState('');
-  
+
   // UI states
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [useMetric, setUseMetric] = useState(false);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
-  
+
   // Save modal states
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState('');
@@ -108,19 +108,19 @@ export default function Index() {
     if (isAnimating && result) {
       const duration = result.flight_time_seconds * 1000;
       const startTime = Date.now();
-      
+
       const animate = () => {
         const elapsed = Date.now() - startTime;
         const progress = Math.min(elapsed / duration, 1);
         setAnimationProgress(progress);
-        
+
         if (progress < 1) {
           requestAnimationFrame(animate);
         } else {
           setIsAnimating(false);
         }
       };
-      
+
       requestAnimationFrame(animate);
     }
   }, [isAnimating, result]);
@@ -262,11 +262,11 @@ export default function Index() {
       } else {
         savedData = await saveCalculationLocally(payload);
       }
-      
+
       setShowSaveModal(false);
       setSaveName('');
       setSaveDescription('');
-      
+
       const shareCode = savedData.share_code;
 
       if (shareCalculation && shareCode) {
@@ -296,7 +296,7 @@ export default function Index() {
   const handleShareCode = async (code: string) => {
     try {
       await Share.share({
-        message: `Check out my dirt bike jump calculation!\n\nShare Code: ${code}\n\nRequired Speed: ${useMetric ? result?.required_speed_kph : result?.required_speed_mph} ${useMetric ? 'km/h' : 'mph'}\nGap: ${result?.input_data.gap_distance} ${useMetric ? 'm' : 'ft'}\nAngle: ${result?.input_data.ramp_angle}°`,
+        message: `Check out my dirt bike jump calculation!\n\nShare Code: ${code}\n\nRequired Speed: ${useMetric ? result?.required_speed_kph : result?.required_speed_mph} ${useMetric ? 'km/h' : 'mph'}`,
       });
     } catch (error) {
       console.log('Error sharing:', error);
@@ -305,10 +305,10 @@ export default function Index() {
 
   const handleQuickShare = async () => {
     if (!result) return;
-    
+
     try {
       await Share.share({
-        message: `Dirt Bike Jump Calculator Results:\n\nRequired Speed: ${useMetric ? result.required_speed_kph : result.required_speed_mph} ${useMetric ? 'km/h' : 'mph'}\nSafe Speed (+15%): ${useMetric ? result.safety_speed_kph : result.safety_speed_mph} ${useMetric ? 'km/h' : 'mph'}\nGap Distance: ${result.input_data.gap_distance} ${useMetric ? 'm' : 'ft'}\nRamp Angle: ${result.input_data.ramp_angle}°\nFlight Time: ${result.flight_time_seconds}s\nMax Height: ${useMetric ? result.max_height_meters : result.max_height_feet} ${useMetric ? 'm' : 'ft'}`,
+        message: `Dirt Bike Jump Calculator Results:\n\nRequired Speed: ${useMetric ? result.required_speed_kph : result.required_speed_mph} ${useMetric ? 'km/h' : 'mph'}\nSafe Speed (+15%): ${useMetric ? result.safety_speed_kph : result.safety_speed_mph} ${useMetric ? 'km/h' : 'mph'}`,
       });
     } catch (error) {
       console.log('Error sharing:', error);
@@ -447,23 +447,23 @@ export default function Index() {
     const svgWidth = width - 40;
     const svgHeight = 180;
     const padding = 30;
-    
+
     const points = result.trajectory_points;
     const maxX = Math.max(...points.map(p => p.x));
     const maxY = Math.max(...points.map(p => p.y));
     const minY = Math.min(...points.map(p => p.y), 0);
-    
+
     const scaleX = (svgWidth - padding * 2) / maxX;
     const scaleY = (svgHeight - padding * 2) / (maxY - minY);
-    
+
     const transformX = (x: number) => padding + x * scaleX;
     const transformY = (y: number) => svgHeight - padding - (y - minY) * scaleY;
-    
+
     // Create path data
     const pathData = points
       .map((p, i) => `${i === 0 ? 'M' : 'L'} ${transformX(p.x)} ${transformY(p.y)}`)
       .join(' ');
-    
+
     // Current bike position based on animation
     const currentIndex = Math.floor(animationProgress * (points.length - 1));
     const currentPoint = points[currentIndex] || points[0];
@@ -471,12 +471,12 @@ export default function Index() {
       result.input_data.unit_system === 'metric'
         ? (result.input_data.landing_height || 0) * 3.28084
         : result.input_data.landing_height || 0;
-    
+
     // Ramp visualization
     const rampLength = maxX * 0.15;
     const rampAngleRad = (result.input_data.ramp_angle * Math.PI) / 180;
     const rampHeight = rampLength * Math.tan(rampAngleRad);
-    
+
     return (
       <View style={styles.trajectoryContainer}>
         <View style={styles.trajectoryHeader}>
@@ -488,7 +488,7 @@ export default function Index() {
             <Text style={styles.replayText}>Replay</Text>
           </TouchableOpacity>
         </View>
-        
+
         <Svg width={svgWidth} height={svgHeight} style={styles.svg}>
           {/* Ground line */}
           <Line
@@ -499,7 +499,7 @@ export default function Index() {
             stroke="#444"
             strokeWidth="2"
           />
-          
+
           {/* Ramp */}
           <Polygon
             points={`${padding},${transformY(0)} ${transformX(rampLength)},${transformY(0)} ${padding},${transformY(rampHeight)}`}
@@ -514,7 +514,7 @@ export default function Index() {
             stroke="#FF6B35"
             strokeWidth="3"
           />
-          
+
           {/* Landing zone */}
           <Line
             x1={transformX(maxX * 0.85)}
@@ -524,7 +524,7 @@ export default function Index() {
             stroke="#4CAF50"
             strokeWidth="3"
           />
-          
+
           {/* Gap indicator */}
           <Line
             x1={transformX(rampLength)}
@@ -544,7 +544,7 @@ export default function Index() {
           >
             {result.input_data.gap_distance} {distanceUnit}
           </SvgText>
-          
+
           {/* Trajectory path */}
           <Path
             d={pathData}
@@ -553,7 +553,7 @@ export default function Index() {
             fill="none"
             strokeDasharray="5,5"
           />
-          
+
           {/* Animated trajectory (solid) */}
           {animationProgress > 0 && (
             <Path
@@ -566,7 +566,7 @@ export default function Index() {
               fill="none"
             />
           )}
-          
+
           {/* Max height indicator */}
           <Line
             x1={transformX(maxX / 2)}
@@ -586,7 +586,7 @@ export default function Index() {
           >
             {useMetric ? result.max_height_meters : result.max_height_feet} {useMetric ? 'm' : 'ft'}
           </SvgText>
-          
+
           {/* Bike position */}
           <G>
             <Circle
@@ -606,7 +606,7 @@ export default function Index() {
             />
           </G>
         </Svg>
-        
+
         <View style={styles.legendContainer}>
           <View style={styles.legendItem}>
             <View style={[styles.legendColor, { backgroundColor: '#FF6B35' }]} />
@@ -652,13 +652,13 @@ export default function Index() {
               style={[styles.toggleButton, !useMetric && styles.toggleActive]}
               onPress={() => setUseMetric(false)}
             >
-              <Text style={[styles.toggleText, !useMetric && styles.toggleTextActive]}>Imperial</Text>
+              <Text style={[styles.toggleText, !useMetric && styles.toggleTextActive]}>Feet</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toggleButton, useMetric && styles.toggleActive]}
               onPress={() => setUseMetric(true)}
             >
-              <Text style={[styles.toggleText, useMetric && styles.toggleTextActive]}>Metric</Text>
+              <Text style={[styles.toggleText, useMetric && styles.toggleTextActive]}>Meters</Text>
             </TouchableOpacity>
           </View>
 
@@ -667,7 +667,7 @@ export default function Index() {
             <Text style={styles.sectionTitle}>
               <Ionicons name="construct" size={18} color="#FF6B35" /> Ramp Details
             </Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Ramp Height ({distanceUnit}) <Text style={styles.optional}>(optional)</Text></Text>
               <TextInput
@@ -905,7 +905,7 @@ export default function Index() {
           <View style={styles.disclaimer}>
             <Ionicons name="information-circle" size={16} color="#888" />
             <Text style={styles.disclaimerText}>
-              This calculator provides estimates based on ideal physics conditions. Actual results may vary due to wind, surface conditions, bike setup, and rider technique. Always prioritize safety and wear proper protective gear.
+              This calculator provides estimates based on ideal physics conditions. Actual results may vary due to wind, surface conditions, bike setup, and rider technique. Always prioritize safety and call 911 in emergencies.
             </Text>
           </View>
         </ScrollView>
@@ -1120,15 +1120,21 @@ const styles = StyleSheet.create({
   },
   toggleContainer: {
     flexDirection: 'row',
+    alignSelf: 'center',
     backgroundColor: '#1E1E1E',
     borderRadius: 12,
     padding: 4,
     marginBottom: 20,
+    width: 'auto',
+    minWidth: 180,
   },
   toggleButton: {
-    flex: 1,
+    flex: 0,
+    minWidth: 86,
     paddingVertical: 10,
+    paddingHorizontal: 18,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 10,
   },
   toggleActive: {
