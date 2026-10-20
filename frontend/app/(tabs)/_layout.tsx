@@ -27,6 +27,29 @@ const ProfileIcon = ({ color, size }: TabIconProps) => (
   <Ionicons name="person" size={size} color={color} />
 );
 
+const RED_BULL_THEME = {
+  accent: '#E10600',
+  accentSoft: '#FF4D3A',
+  tabBar: '#151515',
+  tabBarBorder: '#2B2B2B',
+  inactive: '#9AA0A6',
+  text: '#FFFFFF',
+  panel: '#1E1E1E',
+};
+
+const HONDA_THEME = {
+  accent: '#F97316',
+  accentSoft: '#FB923C',
+  tabBar: '#0F172A',
+  tabBarBorder: '#1E293B',
+  inactive: '#94A3B8',
+  text: '#F8FAFC',
+  panel: '#111827',
+};
+
+const getThemeForRoute = (routeName: string) =>
+  routeName === 'map' || routeName === 'profile' ? HONDA_THEME : RED_BULL_THEME;
+
 export default function TabLayout() {
   const { isTrial, trialInfo } = useSubscription();
 
@@ -44,23 +67,30 @@ export default function TabLayout() {
 
       <Tabs
         initialRouteName="index"
-        screenOptions={{
-          headerShown: false,
-          lazy: true,
-          tabBarStyle: {
-            backgroundColor: '#1A1A1A',
-            borderTopColor: '#333',
-            borderTopWidth: 1,
-            paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-            paddingTop: 8,
-            height: Platform.OS === 'ios' ? 85 : 65,
-          },
-          tabBarActiveTintColor: '#FF6B35',
-          tabBarInactiveTintColor: '#888',
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '600',
-          },
+        screenOptions={({ route }) => {
+          const theme = getThemeForRoute(route.name);
+
+          return {
+            headerShown: false,
+            lazy: true,
+            tabBarStyle: {
+              backgroundColor: theme.tabBar,
+              borderTopColor: theme.tabBarBorder,
+              borderTopWidth: 1,
+              paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+              paddingTop: 8,
+              height: Platform.OS === 'ios' ? 85 : 65,
+            },
+            tabBarActiveTintColor: theme.accent,
+            tabBarInactiveTintColor: theme.inactive,
+            tabBarLabelStyle: {
+              fontSize: 12,
+              fontWeight: '600',
+            },
+            tabBarIconStyle: {
+              marginTop: 4,
+            },
+          };
         }}
       >
         <Tabs.Screen
@@ -105,7 +135,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   trialBanner: {
-    backgroundColor: '#FF9800',
+    backgroundColor: '#E10600',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
