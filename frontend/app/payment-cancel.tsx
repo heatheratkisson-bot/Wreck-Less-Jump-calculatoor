@@ -16,7 +16,7 @@ export default function PaymentCancelScreen() {
       <StatusBar style="light" />
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="close-circle" size={80} color="#FF9800" />
+          <Ionicons name="close-circle" size={80} color="#E8B86D" />
         </View>
         <Text style={styles.title}>Payment Cancelled</Text>
         <Text style={styles.message}>
@@ -27,7 +27,7 @@ export default function PaymentCancelScreen() {
           style={styles.retryButton}
           onPress={() => router.replace('/paywall')}
         >
-          <Ionicons name="arrow-back" size={20} color="#fff" />
+          <Ionicons name="arrow-back" size={20} color="#000000" />
           <Text style={styles.retryButtonText}>Back to Subscribe</Text>
         </TouchableOpacity>
       </View>
@@ -38,7 +38,7 @@ export default function PaymentCancelScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#081116',
   },
   content: {
     flex: 1,
@@ -52,19 +52,19 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
     marginBottom: 16,
     textAlign: 'center',
   },
   message: {
     fontSize: 16,
-    color: '#888',
+    color: '#C2D0CE',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 32,
   },
   retryButton: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 32,
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   retryButtonText: {
-    color: '#fff',
+    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
   },

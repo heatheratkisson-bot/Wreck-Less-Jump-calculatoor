@@ -91,7 +91,7 @@ export default function PaymentSuccessScreen() {
       <View style={styles.content}>
         {status === 'loading' && (
           <>
-            <ActivityIndicator size="large" color="#FF6B35" />
+            <ActivityIndicator size="large" color="#A6D608" />
             <Text style={styles.message}>{message}</Text>
           </>
         )}
@@ -99,7 +99,7 @@ export default function PaymentSuccessScreen() {
         {status === 'success' && (
           <>
             <View style={styles.iconContainer}>
-              <Ionicons name="checkmark-circle" size={80} color="#4CAF50" />
+              <Ionicons name="checkmark-circle" size={80} color="#8BD6A7" />
             </View>
             <Text style={styles.title}>Thank You!</Text>
             <Text style={styles.message}>{message}</Text>
@@ -110,7 +110,7 @@ export default function PaymentSuccessScreen() {
         {status === 'error' && (
           <>
             <View style={styles.iconContainer}>
-              <Ionicons name="close-circle" size={80} color="#F44336" />
+              <Ionicons name="close-circle" size={80} color="#FF7A86" />
             </View>
             <Text style={styles.title}>Payment Issue</Text>
             <Text style={styles.message}>{message}</Text>
@@ -130,7 +130,7 @@ export default function PaymentSuccessScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#081116',
   },
   content: {
     flex: 1,
@@ -144,25 +144,25 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
     marginBottom: 16,
     textAlign: 'center',
   },
   message: {
     fontSize: 16,
-    color: '#888',
+    color: '#C2D0CE',
     textAlign: 'center',
     marginTop: 16,
     lineHeight: 24,
   },
   redirect: {
     fontSize: 14,
-    color: '#FF6B35',
+    color: '#A6D608',
     marginTop: 24,
   },
   retryLink: {
     fontSize: 16,
-    color: '#FF6B35',
+    color: '#A6D608',
     marginTop: 24,
     textDecorationLine: 'underline',
   },

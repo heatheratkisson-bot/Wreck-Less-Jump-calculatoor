@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   Text,
   View,
@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import {
   deleteCalculationLocally,
   fetchJsonWithBackend,
@@ -71,7 +72,7 @@ export default function SavedScreen() {
     }
   }, []);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     isMountedRef.current = true;
     const task = InteractionManager.runAfterInteractions(() => {
       void fetchCalculations();
@@ -81,7 +82,7 @@ export default function SavedScreen() {
       task.cancel();
       isMountedRef.current = false;
     };
-  }, [fetchCalculations]);
+  }, [fetchCalculations]));
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -236,7 +237,7 @@ export default function SavedScreen() {
             <Text style={styles.cardTitle}>{calc.name}</Text>
             {calc.is_shared && (
               <View style={styles.sharedBadge}>
-                <Ionicons name="share-social" size={12} color="#fff" />
+                <Ionicons name="share-social" size={12} color="#F5FAF8" />
                 <Text style={styles.sharedBadgeText}>{calc.share_code}</Text>
               </View>
             )}
@@ -250,26 +251,26 @@ export default function SavedScreen() {
 
         <View style={styles.cardStats}>
           <View style={styles.statItem}>
-            <Ionicons name="speedometer" size={16} color="#4CAF50" />
+            <Ionicons name="speedometer" size={16} color="#8BD6A7" />
             <Text style={styles.statText}>
               {isMetric ? calc.calculation.required_speed_kph : calc.calculation.required_speed_mph} {isMetric ? 'km/h' : 'mph'}
             </Text>
           </View>
           <View style={styles.statItem}>
-            <Ionicons name="resize" size={16} color="#2196F3" />
+            <Ionicons name="resize" size={16} color="#82B6FF" />
             <Text style={styles.statText}>
               {calc.calculation.input_data.gap_distance} {isMetric ? 'm' : 'ft'}
             </Text>
           </View>
           <View style={styles.statItem}>
-            <Ionicons name="trending-up" size={16} color="#FF6B35" />
+            <Ionicons name="trending-up" size={16} color="#A6D608" />
             <Text style={styles.statText}>{calc.calculation.input_data.ramp_angle}°</Text>
           </View>
         </View>
 
         {calc.location && (
           <View style={styles.locationRow}>
-            <Ionicons name="location" size={14} color="#888" />
+            <Ionicons name="location" size={14} color="#C2D0CE" />
             <Text style={styles.locationText}>
               {calc.location.address || `${calc.location.latitude.toFixed(4)}, ${calc.location.longitude.toFixed(4)}`}
             </Text>
@@ -281,22 +282,22 @@ export default function SavedScreen() {
             style={styles.cardActionButton}
             onPress={() => setSelectedCalc(calc)}
           >
-            <Ionicons name="eye" size={18} color="#2196F3" />
+            <Ionicons name="eye" size={18} color="#82B6FF" />
             <Text style={styles.cardActionText}>View</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.cardActionButton}
             onPress={() => handleShare(calc)}
           >
-            <Ionicons name="share-social" size={18} color="#4CAF50" />
-            <Text style={[styles.cardActionText, { color: '#4CAF50' }]}>Share</Text>
+            <Ionicons name="share-social" size={18} color="#8BD6A7" />
+            <Text style={[styles.cardActionText, { color: '#8BD6A7' }]}>Share</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.cardActionButton}
             onPress={() => handleDelete(calc.id, calc.name)}
           >
-            <Ionicons name="trash" size={18} color="#F44336" />
-            <Text style={[styles.cardActionText, { color: '#F44336' }]}>Delete</Text>
+            <Ionicons name="trash" size={18} color="#FF7A86" />
+            <Text style={[styles.cardActionText, { color: '#FF7A86' }]}>Delete</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -319,7 +320,7 @@ export default function SavedScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{selectedCalc.name}</Text>
               <TouchableOpacity onPress={() => setSelectedCalc(null)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color="#F5FAF8" />
               </TouchableOpacity>
             </View>
 
@@ -337,7 +338,7 @@ export default function SavedScreen() {
               </View>
 
               <View style={styles.safetyCard}>
-                <Ionicons name="shield-checkmark" size={20} color="#FF9800" />
+                <Ionicons name="shield-checkmark" size={20} color="#E8B86D" />
                 <View style={{ marginLeft: 12 }}>
                   <Text style={styles.safetyLabel}>Safe Speed (+15%)</Text>
                   <Text style={styles.safetyValue}>
@@ -374,7 +375,7 @@ export default function SavedScreen() {
                 <View style={styles.locationSection}>
                   <Text style={styles.detailsTitle}>Location</Text>
                   <View style={styles.locationDetail}>
-                    <Ionicons name="location" size={18} color="#FF6B35" />
+                    <Ionicons name="location" size={18} color="#A6D608" />
                     <Text style={styles.locationDetailText}>
                       {selectedCalc.location.address || `${selectedCalc.location.latitude.toFixed(6)}, ${selectedCalc.location.longitude.toFixed(6)}`}
                     </Text>
@@ -388,7 +389,7 @@ export default function SavedScreen() {
                   <View style={styles.shareCodeBox}>
                     <Text style={styles.shareCodeText}>{selectedCalc.share_code}</Text>
                     <TouchableOpacity onPress={() => shareCode(selectedCalc)}>
-                      <Ionicons name="copy" size={20} color="#FF6B35" />
+                      <Ionicons name="copy" size={20} color="#A6D608" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -411,19 +412,19 @@ export default function SavedScreen() {
           style={styles.lookupButton}
           onPress={() => setShowLookupModal(true)}
         >
-          <Ionicons name="search" size={20} color="#FF6B35" />
+          <Ionicons name="search" size={20} color="#A6D608" />
           <Text style={styles.lookupButtonText}>Lookup</Text>
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF6B35" />
+          <ActivityIndicator size="large" color="#A6D608" />
           <Text style={styles.loadingText}>Loading calculations...</Text>
         </View>
       ) : calculations.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="bookmark-outline" size={64} color="#444" />
+          <Ionicons name="bookmark-outline" size={64} color="#52666C" />
           <Text style={styles.emptyText}>No saved calculations</Text>
           <Text style={styles.emptySubtext}>
             Calculate a jump and save it to see it here
@@ -437,7 +438,7 @@ export default function SavedScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#FF6B35"
+              tintColor="#A6D608"
             />
           }
         >
@@ -457,7 +458,7 @@ export default function SavedScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Lookup Share Code</Text>
               <TouchableOpacity onPress={() => setShowLookupModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color="#F5FAF8" />
               </TouchableOpacity>
             </View>
 
@@ -468,7 +469,7 @@ export default function SavedScreen() {
                 value={lookupCode}
                 onChangeText={setLookupCode}
                 placeholder="e.g., ABC12345"
-                placeholderTextColor="#666"
+                placeholderTextColor="#9AADB0"
                 autoCapitalize="characters"
                 maxLength={8}
               />
@@ -478,10 +479,10 @@ export default function SavedScreen() {
                 disabled={isLookingUp}
               >
                 {isLookingUp ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color="#000000" />
                 ) : (
                   <>
-                    <Ionicons name="search" size={20} color="#fff" />
+                    <Ionicons name="search" size={20} color="#000000" />
                     <Text style={styles.lookupSubmitText}>Find Calculation</Text>
                   </>
                 )}
@@ -500,7 +501,7 @@ export default function SavedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#081116',
   },
   header: {
     flexDirection: 'row',
@@ -509,24 +510,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    borderBottomColor: '#28434B',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   lookupButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
   },
   lookupButtonText: {
-    color: '#FF6B35',
+    color: '#A6D608',
     fontWeight: '600',
   },
   loadingContainer: {
@@ -535,7 +536,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: '#888',
+    color: '#C2D0CE',
     marginTop: 12,
   },
   emptyContainer: {
@@ -545,13 +546,13 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyText: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 18,
     marginTop: 16,
     fontWeight: '600',
   },
   emptySubtext: {
-    color: '#666',
+    color: '#9AADB0',
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
@@ -564,7 +565,7 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   card: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -582,12 +583,12 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   sharedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -596,16 +597,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   sharedBadgeText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 11,
     fontWeight: '600',
   },
   cardDate: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 12,
   },
   cardDescription: {
-    color: '#aaa',
+    color: '#CED9D6',
     fontSize: 14,
     marginBottom: 12,
   },
@@ -620,7 +621,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -631,14 +632,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   locationText: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 12,
     flex: 1,
   },
   cardActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#333',
+    borderTopColor: '#405C65',
     paddingTop: 12,
     marginTop: 4,
   },
@@ -651,18 +652,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   cardActionText: {
-    color: '#2196F3',
+    color: '#82B6FF',
     fontSize: 14,
     fontWeight: '600',
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(3, 12, 16, 0.84)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '85%',
@@ -673,38 +674,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#405C65',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   modalBody: {
     padding: 20,
   },
   modalDescription: {
-    color: '#aaa',
+    color: '#CED9D6',
     fontSize: 14,
     marginBottom: 20,
     lineHeight: 20,
   },
   resultCard: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#8BD6A7',
   },
   resultLabel: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 14,
     marginBottom: 8,
   },
   resultValue: {
-    color: '#4CAF50',
+    color: '#8BD6A7',
     fontSize: 36,
     fontWeight: 'bold',
   },
@@ -713,26 +714,26 @@ const styles = StyleSheet.create({
     fontWeight: 'normal',
   },
   safetyCard: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    backgroundColor: 'rgba(232, 184, 109, 0.1)',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderColor: 'rgba(232, 184, 109, 0.3)',
   },
   safetyLabel: {
-    color: '#FF9800',
+    color: '#E8B86D',
     fontSize: 12,
   },
   safetyValue: {
-    color: '#FF9800',
+    color: '#E8B86D',
     fontSize: 20,
     fontWeight: 'bold',
   },
   detailsTitle: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
@@ -744,18 +745,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   detailItem: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 10,
     padding: 12,
     width: (width - 64) / 2,
   },
   detailLabel: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 12,
     marginBottom: 4,
   },
   detailValue: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -766,12 +767,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 10,
     padding: 12,
   },
   locationDetailText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 14,
     flex: 1,
   },
@@ -782,35 +783,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 10,
     padding: 16,
   },
   shareCodeText: {
-    color: '#FF6B35',
+    color: '#A6D608',
     fontSize: 24,
     fontWeight: 'bold',
     letterSpacing: 2,
   },
   lookupLabel: {
-    color: '#ccc',
+    color: '#CED9D6',
     fontSize: 14,
     marginBottom: 12,
   },
   lookupInput: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 10,
     padding: 16,
     fontSize: 18,
-    color: '#fff',
+    color: '#F5FAF8',
     textAlign: 'center',
     letterSpacing: 2,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#405C65',
     marginBottom: 16,
   },
   lookupSubmitButton: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -819,7 +820,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   lookupSubmitText: {
-    color: '#fff',
+    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
   },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { forwardRef, useCallback, useImperativeHandle, useState, useEffect, useRef } from 'react';
 import {
   Text,
   View,
@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import Svg, { Circle, Line } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
+const PHOTO_CONTENT_WIDTH = width - 76;
 
 // Credit card standard dimensions in inches
 const CREDIT_CARD_WIDTH_INCHES = 3.370;
@@ -25,7 +26,7 @@ interface MeasurementPoint {
   y: number;
 }
 
-interface Measurements {
+export interface Measurements {
   rampAngle: number | null;
   rampHeight: number | null;
   gapDistance: number | null;
@@ -34,7 +35,16 @@ interface Measurements {
 
 type MeasureMode = 'sensor' | 'photo';
 
-export default function MeasureScreen() {
+export interface MeasureScreenHandle {
+  stopAngleMeasurement: () => void;
+}
+
+interface MeasureScreenProps {
+  onUseMeasurements?: (measurements: Measurements) => void;
+}
+
+const MeasureScreen = forwardRef<MeasureScreenHandle, MeasureScreenProps>(
+  function MeasureScreen({ onUseMeasurements }, ref) {
   const [mode, setMode] = useState<MeasureMode>('sensor');
 
   // Angle measurement states
@@ -106,13 +116,15 @@ export default function MeasureScreen() {
     setSubscription(sub);
   };
 
-  const stopAngleMeasurement = () => {
+  const stopAngleMeasurement = useCallback(() => {
     if (subscription) {
       subscription.remove();
       setSubscription(null);
     }
     setIsCalibrating(false);
-  };
+  }, [subscription]);
+
+  useImperativeHandle(ref, () => ({ stopAngleMeasurement }), [stopAngleMeasurement]);
 
   const saveAngle = () => {
     if (currentAngle !== null) {
@@ -177,7 +189,6 @@ export default function MeasureScreen() {
           const ppi = pixelDistance / CREDIT_CARD_WIDTH_INCHES;
           setPixelsPerInch(ppi);
           setMeasurementMode(null);
-          Alert.alert('Credit Card Marked', 'Now you can measure distances. Tap a measurement button below.');
         }
       }
     } else if (measurementMode === 'rampHeight' || measurementMode === 'gap' || measurementMode === 'landing') {
@@ -203,7 +214,6 @@ export default function MeasureScreen() {
             setMeasurements(prev => ({ ...prev, landingHeight: roundedFeet }));
           }
           
-          Alert.alert('Measured!', `Distance: ${roundedFeet} ft (${Math.round(inches)} inches)`);
           setMeasurePoints([]);
           setMeasurementMode(null);
         }
@@ -232,21 +242,31 @@ export default function MeasureScreen() {
   const getModeInstructions = () => {
     switch (measurementMode) {
       case 'card':
-        return 'Tap the LEFT edge, then RIGHT edge of the credit card';
+        return cardPoints.length === 0
+          ? 'Step 1 of 2: tap the left edge of the card'
+          : 'Step 2 of 2: tap the right edge of the card';
       case 'rampHeight':
-        return 'Tap the BOTTOM, then TOP of the ramp to measure height';
+        return measurePoints.length === 0
+          ? 'Step 1 of 2: tap the bottom of the ramp'
+          : 'Step 2 of 2: tap the top of the ramp';
       case 'gap':
-        return 'Tap the START, then END of the gap to measure distance';
+        return measurePoints.length === 0
+          ? 'Step 1 of 2: tap the start of the gap'
+          : 'Step 2 of 2: tap the end of the gap';
       case 'landing':
-        return 'Tap the BOTTOM, then TOP to measure landing height difference';
+        return measurePoints.length === 0
+          ? 'Step 1 of 2: tap the bottom of the landing'
+          : 'Step 2 of 2: tap the top of the landing';
       default:
-        return 'Select a measurement to take';
+        return pixelsPerInch
+          ? 'Card calibrated. Choose a measurement below, then tap two points on the photo.'
+          : 'Take a photo with a standard card visible to set the scale.';
     }
   };
 
   const renderImageOverlay = () => {
     if (!imageSize) return null;
-    const displayWidth = width - 40;
+    const displayWidth = PHOTO_CONTENT_WIDTH;
     const displayHeight = (displayWidth / imageSize.width) * imageSize.height;
 
     return (
@@ -258,8 +278,8 @@ export default function MeasureScreen() {
             cx={point.x}
             cy={point.y}
             r={8}
-            fill="#4CAF50"
-            stroke="#fff"
+            fill="#8BD6A7"
+            stroke="#F5FAF8"
             strokeWidth={2}
           />
         ))}
@@ -269,7 +289,7 @@ export default function MeasureScreen() {
             y1={cardPoints[0].y}
             x2={cardPoints[1].x}
             y2={cardPoints[1].y}
-            stroke="#4CAF50"
+            stroke="#8BD6A7"
             strokeWidth={3}
           />
         )}
@@ -281,8 +301,8 @@ export default function MeasureScreen() {
             cx={point.x}
             cy={point.y}
             r={8}
-            fill="#FF6B35"
-            stroke="#fff"
+            fill="#A6D608"
+            stroke="#F5FAF8"
             strokeWidth={2}
           />
         ))}
@@ -292,7 +312,7 @@ export default function MeasureScreen() {
             y1={measurePoints[0].y}
             x2={measurePoints[1].x}
             y2={measurePoints[1].y}
-            stroke="#FF6B35"
+            stroke="#A6D608"
             strokeWidth={3}
             strokeDasharray="5,5"
           />
@@ -307,26 +327,45 @@ export default function MeasureScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
-          <Ionicons name="construct" size={32} color="#FF6B35" />
-          <Text style={styles.title}>Measure Tool</Text>
-          <Text style={styles.subtitle}>Use your phone to measure ramp dimensions</Text>
+          <View style={styles.headerIcon}>
+            <Ionicons name="construct" size={26} color="#A6D608" />
+          </View>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Measure</Text>
+            <Text style={styles.subtitle}>Get ramp dimensions for your jump setup</Text>
+          </View>
         </View>
 
         {/* Mode Selector */}
         <View style={styles.modeSelector}>
           <TouchableOpacity
+            accessibilityRole="tab"
+            accessibilityState={{ selected: mode === 'sensor' }}
             style={[styles.modeTab, mode === 'sensor' && styles.modeTabActive]}
             onPress={() => setMode('sensor')}
           >
-            <Ionicons name="phone-portrait" size={18} color={mode === 'sensor' ? '#fff' : '#888'} />
-            <Text style={[styles.modeTabText, mode === 'sensor' && styles.modeTabTextActive]}>Sensor</Text>
+            <Ionicons name="phone-portrait" size={18} color={mode === 'sensor' ? '#000000' : '#C2D0CE'} />
+            <View>
+              <Text style={[styles.modeTabText, mode === 'sensor' && styles.modeTabTextActive]}>Angle</Text>
+              <Text style={[styles.modeTabHint, mode === 'sensor' && styles.modeTabHintActive]}>Phone sensor</Text>
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
+            accessibilityRole="tab"
+            accessibilityState={{ selected: mode === 'photo' }}
             style={[styles.modeTab, mode === 'photo' && styles.modeTabActive]}
-            onPress={() => setMode('photo')}
+            onPress={() => {
+              if (isCalibrating) {
+                stopAngleMeasurement();
+              }
+              setMode('photo');
+            }}
           >
-            <Ionicons name="camera" size={18} color={mode === 'photo' ? '#fff' : '#888'} />
-            <Text style={[styles.modeTabText, mode === 'photo' && styles.modeTabTextActive]}>Photo</Text>
+            <Ionicons name="camera" size={18} color={mode === 'photo' ? '#000000' : '#C2D0CE'} />
+            <View>
+              <Text style={[styles.modeTabText, mode === 'photo' && styles.modeTabTextActive]}>Distance</Text>
+              <Text style={[styles.modeTabHint, mode === 'photo' && styles.modeTabHintActive]}>Photo scale</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -334,8 +373,11 @@ export default function MeasureScreen() {
         {mode === 'sensor' && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="analytics" size={20} color="#FF6B35" />
+            <View style={styles.sectionIcon}>
+              <Ionicons name="analytics" size={20} color="#A6D608" />
+            </View>
             <Text style={styles.sectionTitle}>Ramp Angle</Text>
+            <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>STEP 1</Text></View>
           </View>
           
           <Text style={styles.instructions}>
@@ -356,29 +398,36 @@ export default function MeasureScreen() {
                   style={[styles.angleButton, styles.saveButton]}
                   onPress={saveAngle}
                   disabled={!angleStable}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save measured ramp angle"
                 >
-                  <Ionicons name="checkmark" size={20} color="#fff" />
+                  <Ionicons name="checkmark" size={20} color="#F5FAF8" />
                   <Text style={styles.angleButtonText}>Save</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.angleButton, styles.cancelButton]}
                   onPress={stopAngleMeasurement}
+                  accessibilityRole="button"
                 >
-                  <Ionicons name="close" size={20} color="#FF6B35" />
-                  <Text style={[styles.angleButtonText, { color: '#FF6B35' }]}>Cancel</Text>
+                  <Ionicons name="close" size={20} color="#A6D608" />
+                  <Text style={[styles.angleButtonText, { color: '#A6D608' }]}>Cancel</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
-            <TouchableOpacity style={styles.startButton} onPress={startAngleMeasurement}>
-              <Ionicons name="phone-portrait" size={24} color="#fff" />
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={startAngleMeasurement}
+              accessibilityRole="button"
+            >
+              <Ionicons name="phone-portrait" size={24} color="#000000" />
               <Text style={styles.startButtonText}>Measure Angle</Text>
             </TouchableOpacity>
           )}
 
           {measurements.rampAngle !== null && (
             <View style={styles.savedMeasurement}>
-              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+              <Ionicons name="checkmark-circle" size={16} color="#8BD6A7" />
               <Text style={styles.savedText}>Saved: {measurements.rampAngle}°</Text>
             </View>
           )}
@@ -389,8 +438,11 @@ export default function MeasureScreen() {
         {mode === 'photo' && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="image" size={20} color="#FF6B35" />
+            <View style={styles.sectionIcon}>
+              <Ionicons name="image" size={20} color="#A6D608" />
+            </View>
             <Text style={styles.sectionTitle}>Distance Measurement</Text>
+            <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>STEP 2</Text></View>
           </View>
           
           <Text style={styles.instructions}>
@@ -398,8 +450,12 @@ export default function MeasureScreen() {
           </Text>
 
           {!image ? (
-            <TouchableOpacity style={styles.startButton} onPress={pickImage}>
-              <Ionicons name="camera" size={24} color="#fff" />
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={pickImage}
+              accessibilityRole="button"
+            >
+              <Ionicons name="camera" size={24} color="#000000" />
               <Text style={styles.startButtonText}>Take Photo with Credit Card</Text>
             </TouchableOpacity>
           ) : (
@@ -409,7 +465,19 @@ export default function MeasureScreen() {
                 styles.instructionBanner,
                 measurementMode ? styles.instructionBannerActive : null
               ]}>
-                <Text style={styles.instructionText}>{getModeInstructions()}</Text>
+                <Ionicons
+                  name={measurementMode ? 'hand-left' : pixelsPerInch ? 'checkmark-circle' : 'information-circle'}
+                  size={19}
+                  color={measurementMode ? '#000000' : pixelsPerInch ? '#8BD6A7' : '#E8B86D'}
+                />
+                <Text
+                  style={[
+                    styles.instructionText,
+                    measurementMode && styles.instructionTextActive,
+                  ]}
+                >
+                  {getModeInstructions()}
+                </Text>
               </View>
 
               {/* Image with overlay */}
@@ -423,8 +491,8 @@ export default function MeasureScreen() {
                   style={[
                     styles.previewImage,
                     imageSize && {
-                      height: ((width - 40) / imageSize.width) * imageSize.height
-                    }
+                      height: (PHOTO_CONTENT_WIDTH / imageSize.width) * imageSize.height,
+                    },
                   ]}
                   resizeMode="contain"
                 />
@@ -436,13 +504,13 @@ export default function MeasureScreen() {
                 <Ionicons 
                   name={pixelsPerInch ? "checkmark-circle" : "ellipse-outline"} 
                   size={16} 
-                  color={pixelsPerInch ? "#4CAF50" : "#888"} 
+                  color={pixelsPerInch ? "#8BD6A7" : "#C2D0CE"}
                 />
                 <Text style={[
                   styles.calibrationText,
                   pixelsPerInch ? styles.calibrationTextActive : null
                 ]}>
-                  {pixelsPerInch ? 'Credit card calibrated' : 'Mark credit card edges'}
+                  {pixelsPerInch ? 'Scale set from standard card width' : 'First, mark both card edges on the photo'}
                 </Text>
               </View>
 
@@ -452,47 +520,75 @@ export default function MeasureScreen() {
                   style={[
                     styles.measureButton,
                     measurementMode === 'rampHeight' && styles.measureButtonActive,
-                    measurements.rampHeight !== null && styles.measureButtonDone
+                    measurements.rampHeight !== null && styles.measureButtonDone,
+                    !pixelsPerInch && styles.measureButtonDisabled
                   ]}
                   onPress={() => startMeasurement('rampHeight')}
+                  disabled={!pixelsPerInch}
+                  accessibilityRole="button"
                 >
-                  <Ionicons name="arrow-up" size={18} color="#fff" />
-                  <Text style={styles.measureButtonText}>
+                  <Ionicons
+                    name="arrow-up"
+                    size={20}
+                    color={measurements.rampHeight !== null ? '#F5FAF8' : measurementMode === 'rampHeight' ? '#000000' : '#A6D608'}
+                  />
+                  <Text style={[styles.measureButtonText, measurementMode === 'rampHeight' && styles.measureButtonTextActive]}>
                     {measurements.rampHeight !== null ? `${measurements.rampHeight} ft` : 'Ramp Height'}
                   </Text>
+                  <Ionicons name="chevron-forward" size={18} color={measurements.rampHeight !== null ? '#F5FAF8' : measurementMode === 'rampHeight' ? '#000000' : '#C2D0CE'} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[
                     styles.measureButton,
                     measurementMode === 'gap' && styles.measureButtonActive,
-                    measurements.gapDistance !== null && styles.measureButtonDone
+                    measurements.gapDistance !== null && styles.measureButtonDone,
+                    !pixelsPerInch && styles.measureButtonDisabled
                   ]}
                   onPress={() => startMeasurement('gap')}
+                  disabled={!pixelsPerInch}
+                  accessibilityRole="button"
                 >
-                  <Ionicons name="resize" size={18} color="#fff" />
-                  <Text style={styles.measureButtonText}>
+                  <Ionicons
+                    name="resize"
+                    size={20}
+                    color={measurements.gapDistance !== null ? '#F5FAF8' : measurementMode === 'gap' ? '#000000' : '#A6D608'}
+                  />
+                  <Text style={[styles.measureButtonText, measurementMode === 'gap' && styles.measureButtonTextActive]}>
                     {measurements.gapDistance !== null ? `${measurements.gapDistance} ft` : 'Gap Distance'}
                   </Text>
+                  <Ionicons name="chevron-forward" size={18} color={measurements.gapDistance !== null ? '#F5FAF8' : measurementMode === 'gap' ? '#000000' : '#C2D0CE'} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[
                     styles.measureButton,
                     measurementMode === 'landing' && styles.measureButtonActive,
-                    measurements.landingHeight !== null && styles.measureButtonDone
+                    measurements.landingHeight !== null && styles.measureButtonDone,
+                    !pixelsPerInch && styles.measureButtonDisabled
                   ]}
                   onPress={() => startMeasurement('landing')}
+                  disabled={!pixelsPerInch}
+                  accessibilityRole="button"
                 >
-                  <Ionicons name="arrow-down" size={18} color="#fff" />
-                  <Text style={styles.measureButtonText}>
+                  <Ionicons
+                    name="arrow-down"
+                    size={20}
+                    color={measurements.landingHeight !== null ? '#F5FAF8' : measurementMode === 'landing' ? '#000000' : '#A6D608'}
+                  />
+                  <Text style={[styles.measureButtonText, measurementMode === 'landing' && styles.measureButtonTextActive]}>
                     {measurements.landingHeight !== null ? `${measurements.landingHeight} ft` : 'Landing Height'}
                   </Text>
+                  <Ionicons name="chevron-forward" size={18} color={measurements.landingHeight !== null ? '#F5FAF8' : measurementMode === 'landing' ? '#000000' : '#C2D0CE'} />
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity style={styles.resetButton} onPress={resetPhoto}>
-                <Ionicons name="refresh" size={18} color="#888" />
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={resetPhoto}
+                accessibilityRole="button"
+              >
+                <Ionicons name="refresh" size={18} color="#C2D0CE" />
                 <Text style={styles.resetButtonText}>Take New Photo</Text>
               </TouchableOpacity>
             </View>
@@ -505,7 +601,7 @@ export default function MeasureScreen() {
           measurements.gapDistance !== null || measurements.landingHeight !== null) && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="list" size={20} color="#FF6B35" />
+              <Ionicons name="list" size={20} color="#A6D608" />
               <Text style={styles.sectionTitle}>Measurements Summary</Text>
             </View>
             
@@ -536,16 +632,27 @@ export default function MeasureScreen() {
               )}
             </View>
 
-            <Text style={styles.tipText}>
-              Use these measurements in the Calculator tab to get your required speed!
-            </Text>
+            {onUseMeasurements ? (
+              <TouchableOpacity
+                style={styles.useMeasurementsButton}
+                onPress={() => onUseMeasurements(measurements)}
+                accessibilityRole="button"
+              >
+                <Ionicons name="calculator" size={19} color="#000000" />
+                <Text style={styles.useMeasurementsButtonText}>Use Measurements in How Fast</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.tipText}>
+                Use these measurements in How Fast to get your required speed!
+              </Text>
+            )}
           </View>
         )}
 
         {/* Tips */}
         <View style={styles.tipsContainer}>
           <Text style={styles.tipsTitle}>
-            <Ionicons name="bulb" size={16} color="#FF9800" /> Tips for Accurate Measurements
+            <Ionicons name="bulb" size={16} color="#E8B86D" /> Tips for Accurate Measurements
           </Text>
           <Text style={styles.tipItem}>• Place credit card flat on the ground parallel to camera</Text>
           <Text style={styles.tipItem}>• Keep camera level when taking photo</Text>
@@ -555,12 +662,14 @@ export default function MeasureScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-}
+});
+
+export default MeasureScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#081116',
   },
   scrollView: {
     flex: 1,
@@ -570,107 +679,164 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    gap: 14,
+    marginBottom: 22,
+  },
+  headerIcon: {
+    width: 54,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: '#1B3038',
+    borderWidth: 1,
+    borderColor: '#405C65',
+  },
+  headerText: {
+    flex: 1,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 8,
+    fontSize: 25,
+    fontWeight: '800',
+    color: '#F5FAF8',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#888',
+    fontSize: 13,
+    color: '#C2D0CE',
     marginTop: 4,
+    lineHeight: 19,
   },
   modeSelector: {
     flexDirection: 'row',
-    backgroundColor: '#1E1E1E',
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 20,
-    gap: 4,
+    backgroundColor: '#14262D',
+    borderColor: '#35515A',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 5,
+    marginBottom: 18,
+    gap: 6,
   },
   modeTab: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 11,
-    gap: 6,
+    minHeight: 62,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 10,
   },
   modeTabActive: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
   },
   modeTabText: {
-    color: '#888',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#F5FAF8',
+    fontSize: 15,
+    fontWeight: '700',
   },
   modeTabTextActive: {
-    color: '#fff',
+    color: '#000000',
+  },
+  modeTabHint: {
+    marginTop: 2,
+    color: '#C2D0CE',
+    fontSize: 11,
+  },
+  modeTabHintActive: {
+    color: '#000000',
   },
   section: {
-    backgroundColor: '#1E1E1E',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    backgroundColor: '#1B3038',
+    borderColor: '#35515A',
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 18,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 14,
+  },
+  sectionIcon: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: 'rgba(166, 214, 8, 0.14)',
   },
   sectionTitle: {
+    flex: 1,
     fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: '700',
+    color: '#F5FAF8',
+  },
+  stepBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#405C65',
+    borderRadius: 9,
+    backgroundColor: '#14262D',
+  },
+  stepBadgeText: {
+    color: '#A6D608',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
   },
   instructions: {
     fontSize: 14,
-    color: '#888',
-    marginBottom: 16,
-    lineHeight: 20,
+    color: '#D6E2E0',
+    marginBottom: 18,
+    lineHeight: 22,
   },
   startButton: {
-    backgroundColor: '#FF6B35',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#A6D608',
+    minHeight: 58,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#A6D608',
+    elevation: 2,
   },
   startButtonText: {
-    color: '#fff',
+    color: '#000000',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   angleDisplay: {
     alignItems: 'center',
   },
   angleCircle: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: '#2A2A2A',
+    width: 176,
+    height: 176,
+    borderRadius: 88,
+    backgroundColor: '#14262D',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#FF6B35',
+    borderWidth: 5,
+    borderColor: '#A6D608',
     marginBottom: 20,
   },
   angleValue: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#FF6B35',
+    color: '#A6D608',
   },
   angleLabel: {
     fontSize: 14,
-    color: '#888',
+    color: '#D6E2E0',
     marginTop: 4,
   },
   angleButtons: {
@@ -678,23 +844,28 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   angleButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 54,
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
     gap: 8,
   },
   saveButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
+    borderWidth: 1,
+    borderColor: '#8BD6A7',
   },
   cancelButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#FF6B35',
+    backgroundColor: '#14262D',
+    borderWidth: 1,
+    borderColor: '#A6D608',
   },
   angleButtonText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -702,11 +873,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
+    minHeight: 42,
+    paddingHorizontal: 12,
+    marginTop: 14,
     gap: 6,
+    borderRadius: 11,
+    backgroundColor: 'rgba(139, 214, 167, 0.12)',
   },
   savedText: {
-    color: '#4CAF50',
+    color: '#8BD6A7',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -716,41 +891,67 @@ const styles = StyleSheet.create({
     paddingVertical: 32,
     paddingHorizontal: 20,
     borderRadius: 16,
-    backgroundColor: '#181818',
+    backgroundColor: '#14262D',
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: '#28434B',
     gap: 8,
   },
   arUnavailableTitle: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
   },
   arUnavailableText: {
-    color: '#aaa',
+    color: '#CED9D6',
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  useMeasurementsButton: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    paddingHorizontal: 14,
+    marginTop: 16,
+    borderRadius: 12,
+    backgroundColor: '#A6D608',
+  },
+  useMeasurementsButtonText: {
+    color: '#000000',
+    fontSize: 14,
+    fontWeight: '700',
   },
   photoContainer: {
     marginTop: 8,
   },
   instructionBanner: {
-    backgroundColor: '#2A2A2A',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#14262D',
+    borderColor: '#405C65',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
   },
   instructionBannerActive: {
-    backgroundColor: 'rgba(255, 107, 53, 0.2)',
+    backgroundColor: '#A6D608',
     borderWidth: 1,
-    borderColor: '#FF6B35',
+    borderColor: '#A6D608',
   },
   instructionText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 14,
-    textAlign: 'center',
+    flex: 1,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  instructionTextActive: {
+    color: '#000000',
   },
   imageWrapper: {
     position: 'relative',
@@ -758,7 +959,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   previewImage: {
-    width: width - 40,
+    width: PHOTO_CONTENT_WIDTH,
     borderRadius: 12,
   },
   svgOverlay: {
@@ -769,55 +970,76 @@ const styles = StyleSheet.create({
   calibrationStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    gap: 6,
+    justifyContent: 'flex-start',
+    minHeight: 40,
+    paddingHorizontal: 12,
+    marginTop: 10,
+    gap: 8,
+    borderRadius: 10,
+    backgroundColor: '#14262D',
   },
   calibrationText: {
-    color: '#888',
+    flex: 1,
+    color: '#D6E2E0',
     fontSize: 13,
+    lineHeight: 18,
   },
   calibrationTextActive: {
-    color: '#4CAF50',
+    color: '#8BD6A7',
   },
   measureButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+    flexDirection: 'column',
+    gap: 9,
     marginTop: 16,
   },
   measureButton: {
-    flex: 1,
-    minWidth: 100,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 10,
-    padding: 12,
+    width: '100%',
+    minHeight: 56,
+    backgroundColor: '#14262D',
+    borderColor: '#405C65',
+    borderWidth: 1,
+    borderRadius: 13,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    justifyContent: 'flex-start',
+    gap: 12,
   },
   measureButtonActive: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
+    borderColor: '#A6D608',
   },
   measureButtonDone: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
+    borderColor: '#8BD6A7',
   },
   measureButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    flex: 1,
+    color: '#F5FAF8',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  measureButtonTextActive: {
+    color: '#000000',
+  },
+  measureButtonDisabled: {
+    opacity: 0.48,
   },
   resetButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 16,
-    padding: 12,
-    gap: 6,
+    minHeight: 48,
+    marginTop: 14,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#405C65',
+    borderRadius: 12,
+    gap: 8,
   },
   resetButtonText: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 14,
   },
   summaryGrid: {
@@ -826,43 +1048,46 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   summaryItem: {
-    backgroundColor: '#2A2A2A',
-    borderRadius: 10,
+    flex: 1,
+    backgroundColor: '#14262D',
+    borderWidth: 1,
+    borderColor: '#405C65',
+    borderRadius: 13,
     padding: 16,
     minWidth: (width - 80) / 2 - 6,
     alignItems: 'center',
   },
   summaryLabel: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 12,
     marginBottom: 4,
   },
   summaryValue: {
-    color: '#FF6B35',
+    color: '#A6D608',
     fontSize: 24,
     fontWeight: 'bold',
   },
   tipText: {
-    color: '#4CAF50',
+    color: '#8BD6A7',
     fontSize: 13,
     textAlign: 'center',
     marginTop: 16,
   },
   tipsContainer: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    backgroundColor: '#14262D',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderColor: '#80653B',
   },
   tipsTitle: {
-    color: '#FF9800',
+    color: '#E8B86D',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 12,
   },
   tipItem: {
-    color: '#FFB74D',
+    color: '#F2D39A',
     fontSize: 13,
     marginBottom: 6,
     lineHeight: 18,

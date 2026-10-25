@@ -84,9 +84,32 @@ export interface MapLocation {
   created_at: string;
 }
 
+export interface SavedBikeProfile {
+  id: string;
+  motorcycle: MotorcycleModel;
+  imageUri?: string;
+}
+
+export interface RiderJumpLog {
+  id: string;
+  profileId: string;
+  speedMph: number;
+  gapFeet: number;
+  jumpHeightFeet: number;
+  outcome: 'completed' | 'wreck';
+  createdAt: string;
+}
+
+export interface RiderProfileData {
+  profiles: SavedBikeProfile[];
+  activeProfileId: string | null;
+  jumps: RiderJumpLog[];
+}
+
 const LOCAL_SAVED_CALCULATIONS_KEY = 'wreckless_saved_calculations_v1';
 const DEVICE_ID_STORAGE_KEY = 'device_id';
 const MOTORCYCLE_PROFILE_STORAGE_KEY = 'wreckless_selected_motorcycle_v1';
+const RIDER_PROFILE_DATA_KEY = 'wreckless_rider_profiles_v1';
 // Emergency-specific identifier and secret. These are intentionally never sent or stored
 // alongside the general device_id above, and never returned by any backend endpoint, so a
 // share-code holder who learns device_id (via GET /api/shared/{share_code}) cannot use it
@@ -244,6 +267,182 @@ export async function saveSelectedMotorcycle(motorcycle: MotorcycleModel | null)
   }
 
   await setStoredJson(MOTORCYCLE_PROFILE_STORAGE_KEY, motorcycle.id);
+}
+
+function createBikeProfileId(): string {
+  return `bike_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isRiderProfileData(value: unknown): value is RiderProfileData {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const data = value as Partial<RiderProfileData>;
+  return (
+    Array.isArray(data.profiles) &&
+    Array.isArray(data.jumps) &&
+    (data.activeProfileId === null ||
+      typeof data.activeProfileId === 'string')
+  );
+}
+
+export async function getRiderProfileData(): Promise<RiderProfileData> {
+  const stored = await storage.getItem(RIDER_PROFILE_DATA_KEY);
+  if (stored) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stored);
+    } catch (error) {
+      throw new Error('Saved bike profiles are unreadable.', { cause: error });
+    }
+
+    if (!isRiderProfileData(parsed)) {
+      throw new Error('Saved bike profiles have an invalid format.');
+    }
+
+    return parsed;
+  }
+
+  const legacySelection = await storage.getItem(MOTORCYCLE_PROFILE_STORAGE_KEY);
+  if (!legacySelection) {
+    return { profiles: [], activeProfileId: null, jumps: [] };
+  }
+
+  let legacyMotorcycleId: string | null;
+  try {
+    legacyMotorcycleId = JSON.parse(legacySelection) as string | null;
+  } catch (error) {
+    throw new Error('The previously selected bike profile is unreadable.', { cause: error });
+  }
+  const motorcycle = getMotorcyclesByBrand()
+    .find((item) => item.id === legacyMotorcycleId);
+
+  if (!motorcycle) {
+    return { profiles: [], activeProfileId: null, jumps: [] };
+  }
+
+  const profile: SavedBikeProfile = {
+    id: createBikeProfileId(),
+    motorcycle,
+  };
+  const migrated: RiderProfileData = {
+    profiles: [profile],
+    activeProfileId: profile.id,
+    jumps: [],
+  };
+  await setStoredJson(RIDER_PROFILE_DATA_KEY, migrated);
+  return migrated;
+}
+
+export async function addRiderBikeProfile(
+  motorcycle: MotorcycleModel
+): Promise<SavedBikeProfile> {
+  const data = await getRiderProfileData();
+  if (data.profiles.length >= 3) {
+    throw new Error('All 3 free bike profile slots are in use.');
+  }
+  if (data.profiles.some((profile) => profile.motorcycle.id === motorcycle.id)) {
+    throw new Error('That bike is already saved in a profile.');
+  }
+
+  const profile: SavedBikeProfile = {
+    id: createBikeProfileId(),
+    motorcycle,
+  };
+  const updated = {
+    ...data,
+    profiles: [...data.profiles, profile],
+    activeProfileId: profile.id,
+  };
+  await setStoredJson(RIDER_PROFILE_DATA_KEY, updated);
+  await saveSelectedMotorcycle(motorcycle);
+  return profile;
+}
+
+export async function selectRiderBikeProfile(profileId: string): Promise<void> {
+  const data = await getRiderProfileData();
+  const profile = data.profiles.find((item) => item.id === profileId);
+  if (!profile) {
+    throw new Error('That saved bike profile could not be found.');
+  }
+
+  await setStoredJson(RIDER_PROFILE_DATA_KEY, {
+    ...data,
+    activeProfileId: profileId,
+  });
+  await saveSelectedMotorcycle(profile.motorcycle);
+}
+
+export async function saveRiderBikeProfileImage(
+  profileId: string,
+  sourceUri: string
+): Promise<void> {
+  const data = await getRiderProfileData();
+  const profile = data.profiles.find((item) => item.id === profileId);
+  if (!profile) {
+    throw new Error('That saved bike profile could not be found.');
+  }
+
+  await setStoredJson(RIDER_PROFILE_DATA_KEY, {
+    ...data,
+    profiles: data.profiles.map((item) =>
+      item.id === profileId ? { ...item, imageUri: sourceUri } : item
+    ),
+  });
+}
+
+export async function deleteRiderBikeProfile(profileId: string): Promise<void> {
+  const data = await getRiderProfileData();
+  const profile = data.profiles.find((item) => item.id === profileId);
+  if (!profile) {
+    throw new Error('That saved bike profile could not be found.');
+  }
+
+  const profiles = data.profiles.filter((item) => item.id !== profileId);
+  const jumps = data.jumps.filter((jump) => jump.profileId !== profileId);
+  const activeProfileId =
+    data.activeProfileId === profileId ? (profiles[0]?.id ?? null) : data.activeProfileId;
+
+  await setStoredJson(RIDER_PROFILE_DATA_KEY, {
+    profiles,
+    activeProfileId,
+    jumps,
+  });
+  await saveSelectedMotorcycle(
+    profiles.find((item) => item.id === activeProfileId)?.motorcycle ?? null
+  );
+}
+
+export async function recordRiderJump(
+  jump: Omit<RiderJumpLog, 'id' | 'createdAt'>
+): Promise<RiderJumpLog> {
+  if (
+    !Number.isFinite(jump.speedMph) ||
+    jump.speedMph <= 0 ||
+    !Number.isFinite(jump.gapFeet) ||
+    jump.gapFeet <= 0 ||
+    !Number.isFinite(jump.jumpHeightFeet) ||
+    jump.jumpHeightFeet <= 0
+  ) {
+    throw new Error('Enter a valid speed, gap distance, and jump height.');
+  }
+
+  const data = await getRiderProfileData();
+  if (!data.profiles.some((profile) => profile.id === jump.profileId)) {
+    throw new Error('Select a saved bike profile before logging a jump.');
+  }
+
+  const entry: RiderJumpLog = {
+    ...jump,
+    id: createId('jump'),
+    createdAt: new Date().toISOString(),
+  };
+  await setStoredJson(RIDER_PROFILE_DATA_KEY, {
+    ...data,
+    jumps: [...data.jumps, entry],
+  });
+  return entry;
 }
 
 export function applyMotorcycleAdjustmentsToResult(

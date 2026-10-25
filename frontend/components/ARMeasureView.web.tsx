@@ -32,7 +32,7 @@ export default function ARMeasureView({ onMeasurement, onClose }: Props) {
               <Text style={styles.mockMarkerLabel}>Start</Text>
             </View>
             <View style={[styles.mockMarker, styles.mockMarkerEnd]}>
-              <View style={[styles.mockMarkerDot, { backgroundColor: '#FF6B35' }]} />
+              <View style={[styles.mockMarkerDot, { backgroundColor: '#A6D608' }]} />
               <Text style={styles.mockMarkerLabel}>End</Text>
             </View>
 
@@ -43,7 +43,7 @@ export default function ARMeasureView({ onMeasurement, onClose }: Props) {
             </View>
 
             {/* AR scan indicator */}
-            <Ionicons name="scan" size={80} color="rgba(255, 107, 53, 0.2)" style={styles.scanIcon} />
+            <Ionicons name="scan" size={80} color="rgba(11, 129, 118, 0.2)" style={styles.scanIcon} />
           </View>
         </View>
       </View>
@@ -51,7 +51,7 @@ export default function ARMeasureView({ onMeasurement, onClose }: Props) {
       {/* Info Section */}
       <View style={styles.infoContainer}>
         <View style={styles.deviceBadge}>
-          <Ionicons name="phone-portrait" size={18} color="#FF9800" />
+          <Ionicons name="phone-portrait" size={18} color="#E8B86D" />
           <Text style={styles.deviceBadgeText}>Requires Physical Device</Text>
         </View>
 
@@ -64,7 +64,7 @@ export default function ARMeasureView({ onMeasurement, onClose }: Props) {
         <View style={styles.capList}>
           <View style={styles.capItem}>
             <View style={styles.capIcon}>
-              <Ionicons name="resize" size={20} color="#4CAF50" />
+              <Ionicons name="resize" size={20} color="#8BD6A7" />
             </View>
             <View style={styles.capContent}>
               <Text style={styles.capTitle}>Gap Distance</Text>
@@ -73,7 +73,7 @@ export default function ARMeasureView({ onMeasurement, onClose }: Props) {
           </View>
           <View style={styles.capItem}>
             <View style={styles.capIcon}>
-              <Ionicons name="arrow-up" size={20} color="#4CAF50" />
+              <Ionicons name="arrow-up" size={20} color="#8BD6A7" />
             </View>
             <View style={styles.capContent}>
               <Text style={styles.capTitle}>Ramp Height</Text>
@@ -82,7 +82,7 @@ export default function ARMeasureView({ onMeasurement, onClose }: Props) {
           </View>
           <View style={styles.capItem}>
             <View style={styles.capIcon}>
-              <Ionicons name="analytics" size={20} color="#4CAF50" />
+              <Ionicons name="analytics" size={20} color="#8BD6A7" />
             </View>
             <View style={styles.capContent}>
               <Text style={styles.capTitle}>Ramp Angle</Text>
@@ -94,11 +94,11 @@ export default function ARMeasureView({ onMeasurement, onClose }: Props) {
         {/* Platform badges */}
         <View style={styles.platformRow}>
           <View style={styles.platformBadge}>
-            <Ionicons name="logo-apple" size={16} color="#fff" />
+            <Ionicons name="logo-apple" size={16} color="#F5FAF8" />
             <Text style={styles.platformText}>iOS (ARKit)</Text>
           </View>
           <View style={styles.platformBadge}>
-            <Ionicons name="logo-android" size={16} color="#fff" />
+            <Ionicons name="logo-android" size={16} color="#F5FAF8" />
             <Text style={styles.platformText}>Android (ARCore)</Text>
           </View>
         </View>
@@ -119,9 +119,9 @@ const styles = StyleSheet.create({
     width: width - 60,
     height: 180,
     borderRadius: 16,
-    backgroundColor: '#0A1628',
+    backgroundColor: '#081116',
     borderWidth: 2,
-    borderColor: '#2A3A4A',
+    borderColor: '#405C65',
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
   },
   mockMarker: {
     position: 'absolute',
@@ -167,12 +167,12 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: '#F5FAF8',
   },
   mockMarkerLabel: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 9,
     fontWeight: '600',
     marginTop: 2,
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: '35%',
     height: 2,
-    backgroundColor: '#FFEB3B',
+    backgroundColor: '#E8B86D',
     top: '58%',
     left: '28%',
     transform: [{ rotate: '-8deg' }],
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   mockDistText: {
-    color: '#FFEB3B',
+    color: '#E8B86D',
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -209,28 +209,28 @@ const styles = StyleSheet.create({
   deviceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 152, 0, 0.15)',
+    backgroundColor: 'rgba(232, 184, 109, 0.15)',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
     gap: 6,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderColor: 'rgba(232, 184, 109, 0.3)',
   },
   deviceBadgeText: {
-    color: '#FF9800',
+    color: '#E8B86D',
     fontSize: 13,
     fontWeight: '600',
   },
   title: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 8,
   },
   description: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 19,
@@ -245,18 +245,18 @@ const styles = StyleSheet.create({
   capItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A2A1A',
+    backgroundColor: '#1B3038',
     borderRadius: 12,
     padding: 14,
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.2)',
+    borderColor: 'rgba(139, 214, 167, 0.2)',
   },
   capIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(76, 175, 80, 0.15)',
+    backgroundColor: 'rgba(139, 214, 167, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -264,13 +264,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   capTitle: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 2,
   },
   capDesc: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 12,
   },
   platformRow: {
@@ -280,14 +280,14 @@ const styles = StyleSheet.create({
   platformBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     gap: 6,
   },
   platformText: {
-    color: '#aaa',
+    color: '#CED9D6',
     fontSize: 12,
     fontWeight: '500',
   },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Text,
   View,
@@ -19,6 +19,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import MeasureScreen from './measure';
+import type { MeasureScreenHandle, Measurements } from './measure';
 import Svg, { Path, Circle, Line, Text as SvgText, G, Polygon } from 'react-native-svg';
 import * as Location from 'expo-location';
 import {
@@ -57,6 +59,8 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [useMetric, setUseMetric] = useState(false);
+  const [inputMethod, setInputMethod] = useState<'manual' | 'measure'>('manual');
+  const measureScreenRef = useRef<MeasureScreenHandle>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -204,6 +208,26 @@ export default function Index() {
     setLandingHeight('');
     setResult(null);
     setAnimationProgress(0);
+  };
+
+  const applyMeasurements = (measurements: Measurements) => {
+    measureScreenRef.current?.stopAngleMeasurement();
+    const convertDistance = (feet: number) => (useMetric ? feet * 0.3048 : feet);
+    if (measurements.rampHeight !== null) {
+      setRampHeight(convertDistance(measurements.rampHeight).toFixed(2));
+    }
+    if (measurements.rampAngle !== null) {
+      setRampAngle(String(measurements.rampAngle));
+    }
+    if (measurements.gapDistance !== null) {
+      setGapDistance(convertDistance(measurements.gapDistance).toFixed(2));
+    }
+    if (measurements.landingHeight !== null) {
+      setLandingHeight(convertDistance(measurements.landingHeight).toFixed(2));
+    }
+    setResult(null);
+    setIsAnimating(false);
+    setInputMethod('manual');
   };
 
   const handleSave = async () => {
@@ -481,10 +505,10 @@ export default function Index() {
       <View style={styles.trajectoryContainer}>
         <View style={styles.trajectoryHeader}>
           <Text style={styles.trajectoryTitle}>
-            <Ionicons name="analytics" size={18} color="#2196F3" /> Flight Trajectory
+            <Ionicons name="analytics" size={18} color="#82B6FF" /> Flight Trajectory
           </Text>
           <TouchableOpacity onPress={replayAnimation} style={styles.replayButton}>
-            <Ionicons name="play-circle" size={24} color="#FF6B35" />
+            <Ionicons name="play-circle" size={24} color="#A6D608" />
             <Text style={styles.replayText}>Replay</Text>
           </TouchableOpacity>
         </View>
@@ -496,14 +520,14 @@ export default function Index() {
             y1={transformY(0)}
             x2={svgWidth - padding}
             y2={transformY(0)}
-            stroke="#444"
+            stroke="#52666C"
             strokeWidth="2"
           />
 
           {/* Ramp */}
           <Polygon
             points={`${padding},${transformY(0)} ${transformX(rampLength)},${transformY(0)} ${padding},${transformY(rampHeight)}`}
-            fill="#FF6B35"
+            fill="#A6D608"
             opacity={0.5}
           />
           <Line
@@ -511,7 +535,7 @@ export default function Index() {
             y1={transformY(rampHeight)}
             x2={transformX(rampLength)}
             y2={transformY(0)}
-            stroke="#FF6B35"
+            stroke="#A6D608"
             strokeWidth="3"
           />
 
@@ -521,7 +545,7 @@ export default function Index() {
             y1={transformY(landingHeightFeet)}
             x2={svgWidth - padding}
             y2={transformY(landingHeightFeet)}
-            stroke="#4CAF50"
+            stroke="#8BD6A7"
             strokeWidth="3"
           />
 
@@ -531,14 +555,14 @@ export default function Index() {
             y1={transformY(0) + 15}
             x2={transformX(maxX * 0.85)}
             y2={transformY(0) + 15}
-            stroke="#888"
+            stroke="#C2D0CE"
             strokeWidth="1"
             strokeDasharray="5,5"
           />
           <SvgText
             x={(transformX(rampLength) + transformX(maxX * 0.85)) / 2}
             y={transformY(0) + 28}
-            fill="#888"
+            fill="#C2D0CE"
             fontSize="10"
             textAnchor="middle"
           >
@@ -548,7 +572,7 @@ export default function Index() {
           {/* Trajectory path */}
           <Path
             d={pathData}
-            stroke="#2196F3"
+            stroke="#82B6FF"
             strokeWidth="2"
             fill="none"
             strokeDasharray="5,5"
@@ -561,7 +585,7 @@ export default function Index() {
                 .slice(0, currentIndex + 1)
                 .map((p, i) => `${i === 0 ? 'M' : 'L'} ${transformX(p.x)} ${transformY(p.y)}`)
                 .join(' ')}
-              stroke="#FF6B35"
+              stroke="#A6D608"
               strokeWidth="3"
               fill="none"
             />
@@ -573,7 +597,7 @@ export default function Index() {
             y1={transformY(maxY)}
             x2={transformX(maxX / 2)}
             y2={transformY(0)}
-            stroke="#9C27B0"
+            stroke="#B79CFF"
             strokeWidth="1"
             strokeDasharray="3,3"
             opacity={0.5}
@@ -581,7 +605,7 @@ export default function Index() {
           <SvgText
             x={transformX(maxX / 2) + 5}
             y={transformY(maxY) + 12}
-            fill="#9C27B0"
+            fill="#B79CFF"
             fontSize="9"
           >
             {useMetric ? result.max_height_meters : result.max_height_feet} {useMetric ? 'm' : 'ft'}
@@ -593,14 +617,14 @@ export default function Index() {
               cx={transformX(currentPoint.x)}
               cy={transformY(currentPoint.y)}
               r="8"
-              fill="#FF6B35"
+              fill="#A6D608"
             />
             <Circle
               cx={transformX(currentPoint.x)}
               cy={transformY(currentPoint.y)}
               r="12"
               fill="none"
-              stroke="#FF6B35"
+              stroke="#A6D608"
               strokeWidth="2"
               opacity={0.5}
             />
@@ -609,15 +633,15 @@ export default function Index() {
 
         <View style={styles.legendContainer}>
           <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#FF6B35' }]} />
+            <View style={[styles.legendColor, { backgroundColor: '#A6D608' }]} />
             <Text style={styles.legendText}>Ramp</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#4CAF50' }]} />
+            <View style={[styles.legendColor, { backgroundColor: '#267A58' }]} />
             <Text style={styles.legendText}>Landing</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#2196F3' }]} />
+            <View style={[styles.legendColor, { backgroundColor: '#82B6FF' }]} />
             <Text style={styles.legendText}>Path</Text>
           </View>
         </View>
@@ -628,26 +652,86 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
+      <View pointerEvents="none" style={styles.logoWatermarkContainer}>
+        <Image
+          source={require('../../assets/images/wreckless-logo.jpg')}
+          style={styles.logoWatermark}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
+      </View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
+        <View
+          accessibilityRole="header"
+          accessibilityLabel="Be safer, ride better, wreck less!"
+          style={styles.sloganHeader}
+        >
+          <Text style={styles.sloganFirstLine}>BE SAFER, RIDE BETTER</Text>
+          <Text style={styles.sloganSecondLine}>WRECK LESS!</Text>
+        </View>
+        <View style={styles.inputMethodTabs}>
+          <TouchableOpacity
+            accessibilityRole="tab"
+            accessibilityState={{ selected: inputMethod === 'manual' }}
+            onPress={() => {
+              measureScreenRef.current?.stopAngleMeasurement();
+              setInputMethod('manual');
+            }}
+            style={[styles.inputMethodTab, inputMethod === 'manual' && styles.inputMethodTabActive]}
+          >
+            <Ionicons
+              name="create-outline"
+              size={19}
+              color={inputMethod === 'manual' ? '#000000' : '#C2D0CE'}
+            />
+            <View>
+              <Text style={[styles.inputMethodTitle, inputMethod === 'manual' && styles.inputMethodTextActive]}>
+                Enter Manually
+              </Text>
+              <Text style={[styles.inputMethodSubtitle, inputMethod === 'manual' && styles.inputMethodTextActive]}>
+                Type jump details
+              </Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="tab"
+            accessibilityState={{ selected: inputMethod === 'measure' }}
+            onPress={() => setInputMethod('measure')}
+            style={[styles.inputMethodTab, inputMethod === 'measure' && styles.inputMethodTabActive]}
+          >
+            <Ionicons
+              name="camera"
+              size={19}
+              color={inputMethod === 'measure' ? '#000000' : '#C2D0CE'}
+            />
+            <View>
+              <Text style={[styles.inputMethodTitle, inputMethod === 'measure' && styles.inputMethodTextActive]}>
+                Measure
+              </Text>
+              <Text style={[styles.inputMethodSubtitle, inputMethod === 'measure' && styles.inputMethodTextActive]}>
+                Use phone or photo
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View
+          style={[
+            styles.inputMethodContent,
+            { display: inputMethod === 'manual' ? 'flex' : 'none' },
+          ]}
+        >
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Image
-              source={require('../../assets/images/wreckless-logo.jpg')}
-              style={styles.headerLogo}
-              resizeMode="contain"
-            />
-          </View>
-
           {/* Unit Toggle */}
           <View style={styles.toggleContainer}>
+            <Text style={styles.unitLabel}>Units</Text>
             <TouchableOpacity
               style={[styles.toggleButton, !useMetric && styles.toggleActive]}
               onPress={() => setUseMetric(false)}
@@ -665,7 +749,7 @@ export default function Index() {
           {/* Input Form */}
           <View style={styles.formContainer}>
             <Text style={styles.sectionTitle}>
-              <Ionicons name="construct" size={18} color="#FF6B35" /> Ramp Details
+              <Ionicons name="construct" size={18} color="#A6D608" /> Ramp Details
             </Text>
 
             <View style={styles.inputGroup}>
@@ -675,7 +759,7 @@ export default function Index() {
                 value={rampHeight}
                 onChangeText={setRampHeight}
                 placeholder={`e.g., ${useMetric ? '1.5' : '5'}`}
-                placeholderTextColor="#666"
+                placeholderTextColor="#9AADB0"
                 keyboardType="decimal-pad"
               />
             </View>
@@ -687,13 +771,13 @@ export default function Index() {
                 value={rampAngle}
                 onChangeText={setRampAngle}
                 placeholder="e.g., 30"
-                placeholderTextColor="#666"
+                placeholderTextColor="#9AADB0"
                 keyboardType="decimal-pad"
               />
             </View>
 
             <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
-              <Ionicons name="resize" size={18} color="#FF6B35" /> Jump Details
+              <Ionicons name="resize" size={18} color="#A6D608" /> Jump Details
             </Text>
 
             <View style={styles.inputGroup}>
@@ -703,7 +787,7 @@ export default function Index() {
                 value={gapDistance}
                 onChangeText={setGapDistance}
                 placeholder={`e.g., ${useMetric ? '15' : '50'}`}
-                placeholderTextColor="#666"
+                placeholderTextColor="#9AADB0"
                 keyboardType="decimal-pad"
               />
             </View>
@@ -715,13 +799,13 @@ export default function Index() {
                 value={landingHeight}
                 onChangeText={setLandingHeight}
                 placeholder="e.g., -3"
-                placeholderTextColor="#666"
+                placeholderTextColor="#9AADB0"
                 keyboardType="decimal-pad"
               />
             </View>
 
             <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
-              <Ionicons name="body" size={18} color="#FF6B35" /> Weight Details
+              <Ionicons name="body" size={18} color="#A6D608" /> Weight Details
             </Text>
 
             <View style={styles.inputGroup}>
@@ -731,7 +815,7 @@ export default function Index() {
                 value={bikeWeight}
                 onChangeText={setBikeWeight}
                 placeholder={`e.g., ${useMetric ? '100' : '220'}`}
-                placeholderTextColor="#666"
+                placeholderTextColor="#9AADB0"
                 keyboardType="decimal-pad"
               />
             </View>
@@ -743,7 +827,7 @@ export default function Index() {
                 value={riderWeight}
                 onChangeText={setRiderWeight}
                 placeholder={`e.g., ${useMetric ? '75' : '165'}`}
-                placeholderTextColor="#666"
+                placeholderTextColor="#9AADB0"
                 keyboardType="decimal-pad"
               />
             </View>
@@ -757,17 +841,17 @@ export default function Index() {
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#000000" />
               ) : (
                 <>
-                  <Ionicons name="calculator" size={20} color="#fff" />
+                  <Ionicons name="calculator" size={20} color="#000000" />
                   <Text style={styles.calculateButtonText}>Calculate Speed</Text>
                 </>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.clearButton} onPress={clearForm}>
-              <Ionicons name="refresh" size={20} color="#FF6B35" />
+              <Ionicons name="refresh" size={20} color="#A6D608" />
               <Text style={styles.clearButtonText}>Clear</Text>
             </TouchableOpacity>
           </View>
@@ -777,14 +861,14 @@ export default function Index() {
             <View style={styles.resultsContainer}>
               <View style={styles.resultsHeader}>
                 <Text style={styles.resultsTitle}>
-                  <Ionicons name="checkmark-circle" size={22} color="#4CAF50" /> Results
+                  <Ionicons name="checkmark-circle" size={22} color="#8BD6A7" /> Results
                 </Text>
                 <View style={styles.resultActions}>
                   <TouchableOpacity onPress={handleQuickShare} style={styles.actionButton}>
-                    <Ionicons name="share-social" size={20} color="#2196F3" />
+                    <Ionicons name="share-social" size={20} color="#82B6FF" />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={openSaveModal} style={styles.actionButton}>
-                    <Ionicons name="bookmark" size={20} color="#FF6B35" />
+                    <Ionicons name="bookmark" size={20} color="#A6D608" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -803,7 +887,7 @@ export default function Index() {
 
               {/* Safety Speed */}
               <View style={styles.safetyCard}>
-                <Ionicons name="shield-checkmark" size={24} color="#FF9800" />
+                <Ionicons name="shield-checkmark" size={24} color="#E8B86D" />
                 <View style={styles.safetyContent}>
                   <Text style={styles.safetyLabel}>Recommended Safe Speed (+15%)</Text>
                   <Text style={styles.safetyValue}>
@@ -815,13 +899,13 @@ export default function Index() {
               {/* Detailed Stats */}
               <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
-                  <Ionicons name="time" size={20} color="#2196F3" />
+                  <Ionicons name="time" size={20} color="#82B6FF" />
                   <Text style={styles.statValue}>{result.flight_time_seconds}s</Text>
                   <Text style={styles.statLabel}>Flight Time</Text>
                 </View>
 
                 <View style={styles.statCard}>
-                  <Ionicons name="arrow-up" size={20} color="#9C27B0" />
+                  <Ionicons name="arrow-up" size={20} color="#B79CFF" />
                   <Text style={styles.statValue}>
                     {useMetric ? result.max_height_meters : result.max_height_feet}
                     {useMetric ? 'm' : 'ft'}
@@ -830,7 +914,7 @@ export default function Index() {
                 </View>
 
                 <View style={styles.statCard}>
-                  <Ionicons name="arrow-down" size={20} color="#E91E63" />
+                  <Ionicons name="arrow-down" size={20} color="#FF7A86" />
                   <Text style={styles.statValue}>
                     {useMetric ? result.landing_velocity_kph : result.landing_velocity_mph}
                     {speedUnit}
@@ -839,7 +923,7 @@ export default function Index() {
                 </View>
 
                 <View style={styles.statCard}>
-                  <Ionicons name="fitness" size={20} color="#4CAF50" />
+                  <Ionicons name="fitness" size={20} color="#8BD6A7" />
                   <Text style={styles.statValue}>
                     {useMetric ? result.total_weight_kg : result.total_weight_lbs}
                     {weightUnit}
@@ -852,7 +936,7 @@ export default function Index() {
               {result.warnings && result.warnings.length > 0 && (
                 <View style={styles.warningsContainer}>
                   <Text style={styles.warningsTitle}>
-                    <Ionicons name="warning" size={18} color="#FF9800" /> Safety Warnings
+                    <Ionicons name="warning" size={18} color="#E8B86D" /> Safety Warnings
                   </Text>
                   {result.warnings.map((warning, index) => (
                     <Text key={index} style={styles.warningText}>
@@ -865,7 +949,7 @@ export default function Index() {
               {/* Emergency Alerts */}
               <View style={styles.emergencyContainer}>
                 <View style={styles.emergencyDisclaimer}>
-                  <Ionicons name="alert-circle-outline" size={16} color="#FF9800" />
+                  <Ionicons name="alert-circle-outline" size={16} color="#E8B86D" />
                   <Text style={styles.emergencyDisclaimerText}>
                     This feature is NOT a substitute for calling 911. In emergencies, call 911 directly.
                   </Text>
@@ -877,7 +961,7 @@ export default function Index() {
                   accessibilityRole="button"
                   accessibilityLabel="Call for Help. Opens your phone dialer pre-filled with 911."
                 >
-                  <Ionicons name="alert-circle" size={26} color="#fff" />
+                  <Ionicons name="alert-circle" size={26} color="#F5FAF8" />
                   <Text style={styles.callHelpButtonText}>Call for Help</Text>
                 </TouchableOpacity>
 
@@ -889,10 +973,10 @@ export default function Index() {
                   accessibilityLabel="Alert Nearby Riders. Notifies opted-in riders within 5 miles that help may be needed."
                 >
                   {isSendingAlert ? (
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color="#000000" />
                   ) : (
                     <>
-                      <Ionicons name="heart" size={26} color="#fff" />
+                      <Ionicons name="heart" size={26} color="#F5FAF8" />
                       <Text style={styles.alertRidersButtonText}>Alert Nearby Riders</Text>
                     </>
                   )}
@@ -903,12 +987,25 @@ export default function Index() {
 
           {/* Disclaimer */}
           <View style={styles.disclaimer}>
-            <Ionicons name="information-circle" size={16} color="#888" />
+            <Ionicons name="information-circle" size={16} color="#C2D0CE" />
             <Text style={styles.disclaimerText}>
               This calculator provides estimates based on ideal physics conditions. Actual results may vary due to wind, surface conditions, bike setup, and rider technique. Always prioritize safety and call 911 in emergencies.
             </Text>
           </View>
         </ScrollView>
+        </View>
+
+        <View
+          style={[
+            styles.measureContent,
+            { display: inputMethod === 'measure' ? 'flex' : 'none' },
+          ]}
+        >
+          <MeasureScreen
+            ref={measureScreenRef}
+            onUseMeasurements={applyMeasurements}
+          />
+        </View>
       </KeyboardAvoidingView>
 
       {/* Save Modal */}
@@ -923,7 +1020,7 @@ export default function Index() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Save Calculation</Text>
               <TouchableOpacity onPress={() => setShowSaveModal(false)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color="#F5FAF8" />
               </TouchableOpacity>
             </View>
 
@@ -935,7 +1032,7 @@ export default function Index() {
                   value={saveName}
                   onChangeText={setSaveName}
                   placeholder="e.g., Backyard Gap Jump"
-                  placeholderTextColor="#666"
+                  placeholderTextColor="#9AADB0"
                 />
               </View>
 
@@ -946,7 +1043,7 @@ export default function Index() {
                   value={saveDescription}
                   onChangeText={setSaveDescription}
                   placeholder="Add notes about this jump..."
-                  placeholderTextColor="#666"
+                  placeholderTextColor="#9AADB0"
                   multiline
                   numberOfLines={3}
                 />
@@ -959,7 +1056,7 @@ export default function Index() {
                 <Ionicons
                   name={includeLocation ? 'checkbox' : 'square-outline'}
                   size={24}
-                  color="#FF6B35"
+                  color="#A6D608"
                 />
                 <View style={styles.optionContent}>
                   <Text style={styles.optionTitle}>Include Location</Text>
@@ -976,7 +1073,7 @@ export default function Index() {
                 <Ionicons
                   name={shareCalculation ? 'checkbox' : 'square-outline'}
                   size={24}
-                  color="#FF6B35"
+                  color="#A6D608"
                 />
                 <View style={styles.optionContent}>
                   <Text style={styles.optionTitle}>Share with Others</Text>
@@ -992,10 +1089,10 @@ export default function Index() {
                 disabled={isSaving}
               >
                 {isSaving ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color="#000000" />
                 ) : (
                   <>
-                    <Ionicons name="bookmark" size={20} color="#fff" />
+                    <Ionicons name="bookmark" size={20} color="#000000" />
                     <Text style={styles.saveButtonText}>Save Calculation</Text>
                   </>
                 )}
@@ -1014,7 +1111,7 @@ export default function Index() {
       >
         <View style={styles.confirmModalOverlay}>
           <View style={styles.confirmModalContent}>
-            <Ionicons name="alert-circle" size={40} color="#E91E63" style={styles.confirmModalIcon} />
+            <Ionicons name="alert-circle" size={40} color="#FF7A86" style={styles.confirmModalIcon} />
             <Text style={styles.confirmModalTitle}>Are you injured?</Text>
             <Text style={styles.confirmModalBody}>
               You will be calling emergency services directly. This opens your phone&apos;s dialer
@@ -1033,7 +1130,7 @@ export default function Index() {
                 style={styles.confirmModalCallButton}
                 onPress={confirmCallForHelp}
               >
-                <Ionicons name="call" size={18} color="#fff" />
+                <Ionicons name="call" size={18} color="#F5FAF8" />
                 <Text style={styles.confirmModalCallText}>Call 911</Text>
               </TouchableOpacity>
             </View>
@@ -1050,7 +1147,7 @@ export default function Index() {
       >
         <View style={styles.confirmModalOverlay}>
           <View style={styles.confirmModalContent}>
-            <Ionicons name="heart" size={40} color="#4CAF50" style={styles.confirmModalIcon} />
+            <Ionicons name="heart" size={40} color="#8BD6A7" style={styles.confirmModalIcon} />
             <Text style={styles.confirmModalTitle}>Alert nearby riders?</Text>
             <Text style={styles.confirmModalBody}>
               Other riders within 5 miles will be notified that help may be needed.
@@ -1071,7 +1168,7 @@ export default function Index() {
                 style={styles.confirmModalAlertButton}
                 onPress={confirmAlertNearbyRiders}
               >
-                <Ionicons name="send" size={18} color="#fff" />
+                <Ionicons name="send" size={18} color="#F5FAF8" />
                 <Text style={styles.confirmModalAlertText}>Send Alert</Text>
               </TouchableOpacity>
             </View>
@@ -1085,9 +1182,74 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#081116',
   },
   keyboardView: {
+    flex: 1,
+  },
+  sloganHeader: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 3,
+  },
+  sloganFirstLine: {
+    color: '#F5FAF8',
+    fontFamily: 'sans-serif-condensed',
+    fontSize: 20,
+    fontStyle: 'italic',
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textAlign: 'center',
+  },
+  sloganSecondLine: {
+    color: '#A6D608',
+    fontFamily: 'sans-serif-condensed',
+    fontSize: 24,
+    fontStyle: 'italic',
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textAlign: 'center',
+  },
+  inputMethodTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    padding: 5,
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(20, 37, 44, 0.92)',
+  },
+  inputMethodTab: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+  },
+  inputMethodTabActive: {
+    backgroundColor: '#A6D608',
+  },
+  inputMethodTitle: {
+    color: '#C2D0CE',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  inputMethodSubtitle: {
+    marginTop: 2,
+    color: '#C2D0CE',
+    fontSize: 10,
+  },
+  inputMethodTextActive: {
+    color: '#000000',
+  },
+  inputMethodContent: {
+    flex: 1,
+  },
+  measureContent: {
     flex: 1,
   },
   scrollView: {
@@ -1097,59 +1259,69 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 16,
+  logoWatermarkContainer: {
+    position: 'absolute',
+    top: 0,
+    left: '-25%',
+    width: '150%',
+    height: 620,
   },
-  headerLogo: {
-    width: 250,
-    height: 137,
+  logoWatermark: {
+    width: '100%',
+    height: '100%',
+    opacity: 0.5,
   },
   title: {
     fontSize: 26,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
     marginTop: 12,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: '#888',
+    color: '#C2D0CE',
     marginTop: 6,
     textAlign: 'center',
   },
   toggleContainer: {
     flexDirection: 'row',
-    alignSelf: 'center',
-    backgroundColor: '#1E1E1E',
+    alignItems: 'center',
+    backgroundColor: 'rgba(20, 37, 44, 0.78)',
     borderRadius: 12,
-    padding: 4,
+    padding: 5,
     marginBottom: 20,
-    width: 'auto',
-    minWidth: 180,
+    alignSelf: 'flex-start',
+    gap: 3,
+  },
+  unitLabel: {
+    color: '#C2D0CE',
+    fontSize: 12,
+    fontWeight: '700',
+    paddingHorizontal: 9,
   },
   toggleButton: {
     flex: 0,
-    minWidth: 86,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    minWidth: 76,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 10,
   },
   toggleActive: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
   },
   toggleText: {
-    color: '#888',
+    color: '#C2D0CE',
     fontWeight: '600',
     fontSize: 14,
   },
   toggleTextActive: {
-    color: '#fff',
+    color: '#000000',
   },
   formContainer: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: 'rgba(20, 37, 44, 0.76)',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -1157,7 +1329,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#F5FAF8',
     marginBottom: 16,
   },
   inputGroup: {
@@ -1165,24 +1337,24 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#ccc',
+    color: '#CED9D6',
     marginBottom: 8,
   },
   required: {
-    color: '#FF6B35',
+    color: '#A6D608',
   },
   optional: {
-    color: '#666',
+    color: '#9AADB0',
     fontSize: 12,
   },
   input: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: 'rgba(29, 51, 58, 0.84)',
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    color: '#fff',
+    color: '#F5FAF8',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#405C65',
   },
   textArea: {
     height: 80,
@@ -1195,7 +1367,7 @@ const styles = StyleSheet.create({
   },
   calculateButton: {
     flex: 2,
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -1204,13 +1376,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   calculateButtonText: {
-    color: '#fff',
+    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
   },
   clearButton: {
     flex: 1,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: 'rgba(20, 37, 44, 0.78)',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -1218,15 +1390,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 1,
-    borderColor: '#FF6B35',
+    borderColor: '#A6D608',
   },
   clearButtonText: {
-    color: '#FF6B35',
+    color: '#A6D608',
     fontSize: 16,
     fontWeight: '600',
   },
   resultsContainer: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: 'rgba(20, 37, 44, 0.76)',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
@@ -1240,7 +1412,7 @@ const styles = StyleSheet.create({
   resultsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   resultActions: {
     flexDirection: 'row',
@@ -1248,11 +1420,11 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     padding: 8,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: 'rgba(29, 51, 58, 0.84)',
     borderRadius: 8,
   },
   trajectoryContainer: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: 'rgba(29, 51, 58, 0.78)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -1266,7 +1438,7 @@ const styles = StyleSheet.create({
   trajectoryTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   replayButton: {
     flexDirection: 'row',
@@ -1274,7 +1446,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   replayText: {
-    color: '#FF6B35',
+    color: '#A6D608',
     fontSize: 12,
   },
   svg: {
@@ -1297,41 +1469,41 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   legendText: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 11,
   },
   mainResultCard: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: 'rgba(29, 51, 58, 0.78)',
     borderRadius: 12,
     padding: 24,
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#8BD6A7',
   },
   mainResultLabel: {
     fontSize: 14,
-    color: '#888',
+    color: '#C2D0CE',
     marginBottom: 8,
   },
   mainResultValue: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#8BD6A7',
   },
   mainResultUnit: {
     fontSize: 24,
     fontWeight: 'normal',
   },
   safetyCard: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    backgroundColor: 'rgba(232, 184, 109, 0.1)',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderColor: 'rgba(232, 184, 109, 0.3)',
   },
   safetyContent: {
     marginLeft: 12,
@@ -1339,13 +1511,13 @@ const styles = StyleSheet.create({
   },
   safetyLabel: {
     fontSize: 12,
-    color: '#FF9800',
+    color: '#E8B86D',
     marginBottom: 4,
   },
   safetyValue: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#FF9800',
+    color: '#E8B86D',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -1353,7 +1525,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statCard: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: 'rgba(29, 51, 58, 0.78)',
     borderRadius: 12,
     padding: 16,
     width: (width - 76) / 2,
@@ -1362,38 +1534,38 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
     marginTop: 8,
   },
   statLabel: {
     fontSize: 12,
-    color: '#888',
+    color: '#C2D0CE',
     marginTop: 4,
   },
   warningsContainer: {
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    backgroundColor: 'rgba(232, 184, 109, 0.1)',
     borderRadius: 12,
     padding: 16,
     marginTop: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderColor: 'rgba(232, 184, 109, 0.3)',
   },
   warningsTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF9800',
+    color: '#E8B86D',
     marginBottom: 12,
   },
   warningText: {
     fontSize: 13,
-    color: '#FFB74D',
+    color: '#F2D39A',
     marginBottom: 8,
     lineHeight: 18,
   },
   disclaimer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: 'rgba(16, 32, 39, 0.82)',
     borderRadius: 12,
     padding: 16,
     gap: 10,
@@ -1401,7 +1573,7 @@ const styles = StyleSheet.create({
   disclaimerText: {
     flex: 1,
     fontSize: 12,
-    color: '#888',
+    color: '#C2D0CE',
     lineHeight: 18,
   },
   // Emergency alert styles
@@ -1411,23 +1583,23 @@ const styles = StyleSheet.create({
   emergencyDisclaimer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: 'rgba(255, 152, 0, 0.1)',
+    backgroundColor: 'rgba(232, 184, 109, 0.1)',
     borderRadius: 12,
     padding: 12,
     gap: 8,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 152, 0, 0.3)',
+    borderColor: 'rgba(232, 184, 109, 0.3)',
   },
   emergencyDisclaimerText: {
     flex: 1,
     fontSize: 12,
-    color: '#FFB74D',
+    color: '#F2D39A',
     lineHeight: 16,
     fontWeight: '600',
   },
   callHelpButton: {
-    backgroundColor: '#E91E63',
+    backgroundColor: '#FF7A86',
     borderRadius: 12,
     padding: 18,
     minHeight: 56,
@@ -1438,12 +1610,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   callHelpButtonText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 18,
     fontWeight: 'bold',
   },
   alertRidersButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
     borderRadius: 12,
     padding: 18,
     minHeight: 56,
@@ -1453,13 +1625,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   alertRidersButtonText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 18,
     fontWeight: 'bold',
   },
   confirmModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(3, 12, 16, 0.84)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -1467,7 +1639,7 @@ const styles = StyleSheet.create({
   confirmModalContent: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
@@ -1478,20 +1650,20 @@ const styles = StyleSheet.create({
   confirmModalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
     marginBottom: 12,
     textAlign: 'center',
   },
   confirmModalBody: {
     fontSize: 14,
-    color: '#ccc',
+    color: '#CED9D6',
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 8,
   },
   confirmModalDisclaimer: {
     fontSize: 12,
-    color: '#FF9800',
+    color: '#E8B86D',
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 8,
@@ -1505,7 +1677,7 @@ const styles = StyleSheet.create({
   },
   confirmModalCancelButton: {
     flex: 1,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 12,
     padding: 16,
     minHeight: 48,
@@ -1513,13 +1685,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   confirmModalCancelText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 16,
     fontWeight: '600',
   },
   confirmModalCallButton: {
     flex: 1,
-    backgroundColor: '#E91E63',
+    backgroundColor: '#FF7A86',
     borderRadius: 12,
     padding: 16,
     minHeight: 48,
@@ -1529,13 +1701,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   confirmModalCallText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 16,
     fontWeight: 'bold',
   },
   confirmModalAlertButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
     borderRadius: 12,
     padding: 16,
     minHeight: 48,
@@ -1545,18 +1717,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   confirmModalAlertText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 16,
     fontWeight: 'bold',
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(3, 12, 16, 0.84)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '80%',
@@ -1567,12 +1739,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#405C65',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   modalBody: {
     padding: 20,
@@ -1581,7 +1753,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 12,
     marginBottom: 12,
     gap: 12,
@@ -1591,16 +1763,16 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     fontSize: 16,
-    color: '#fff',
+    color: '#F5FAF8',
     fontWeight: '600',
   },
   optionSubtitle: {
     fontSize: 12,
-    color: '#888',
+    color: '#C2D0CE',
     marginTop: 2,
   },
   saveButton: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -1613,7 +1785,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   saveButtonText: {
-    color: '#fff',
+    color: '#000000',
     fontSize: 16,
     fontWeight: '600',
   },

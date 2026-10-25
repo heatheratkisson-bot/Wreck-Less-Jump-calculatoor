@@ -147,13 +147,13 @@ export default function PaywallScreen() {
           {features.map((feature, index) => (
             <View key={index} style={styles.featureRow}>
               <View style={styles.featureIcon}>
-                <Ionicons name={feature.icon as any} size={24} color="#FF6B35" />
+                <Ionicons name={feature.icon as any} size={24} color="#A6D608" />
               </View>
               <View style={styles.featureContent}>
                 <Text style={styles.featureTitle}>{feature.title}</Text>
                 <Text style={styles.featureDescription}>{feature.description}</Text>
               </View>
-              <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+              <Ionicons name="checkmark-circle" size={20} color="#8BD6A7" />
             </View>
           ))}
         </View>
@@ -168,7 +168,7 @@ export default function PaywallScreen() {
             <Text style={styles.trialDaysLabel}>Day Free Trial</Text>
           </View>
           <View style={styles.trialInfo}>
-            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+            <Ionicons name="checkmark-circle" size={16} color="#8BD6A7" />
             <Text style={styles.trialInfoText}>No credit card needed</Text>
           </View>
           <Text style={styles.trialNote}>Try everything free for 3 days</Text>
@@ -185,7 +185,7 @@ export default function PaywallScreen() {
         {/* Error Message */}
         {error ? (
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle" size={20} color="#F44336" />
+            <Ionicons name="alert-circle" size={20} color="#FF7A86" />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
@@ -197,10 +197,10 @@ export default function PaywallScreen() {
           disabled={isTrialLoading || isLoading}
         >
           {isTrialLoading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#F5FAF8" />
           ) : (
             <>
-              <Ionicons name="rocket" size={24} color="#fff" />
+              <Ionicons name="rocket" size={24} color="#F5FAF8" />
               <Text style={styles.trialButtonText}>Start 3-Day Free Trial</Text>
             </>
           )}
@@ -220,10 +220,10 @@ export default function PaywallScreen() {
           disabled={isLoading || isTrialLoading}
         >
           {isLoading ? (
-            <ActivityIndicator color="#FF6B35" />
+            <ActivityIndicator color="#A6D608" />
           ) : (
             <>
-              <Ionicons name="card" size={24} color="#FF6B35" />
+              <Ionicons name="card" size={24} color="#A6D608" />
               <Text style={styles.subscribeButtonText}>Unlock 30-Day Access - $2.99</Text>
             </>
           )}
@@ -237,7 +237,7 @@ export default function PaywallScreen() {
 
         {/* Secure Payment Badge */}
         <View style={styles.securePayment}>
-          <Ionicons name="lock-closed" size={16} color="#888" />
+          <Ionicons name="lock-closed" size={16} color="#C2D0CE" />
           <Text style={styles.securePaymentText}>Secure payment via Stripe</Text>
         </View>
       </ScrollView>
@@ -248,7 +248,7 @@ export default function PaywallScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#081116',
   },
   scrollContent: {
     padding: 24,
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   featuresContainer: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
@@ -274,13 +274,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    borderBottomColor: '#28434B',
   },
   featureIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 107, 53, 0.1)',
+    backgroundColor: 'rgba(166, 214, 8, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -291,31 +291,31 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   featureDescription: {
     fontSize: 13,
-    color: '#888',
+    color: '#C2D0CE',
     marginTop: 2,
   },
   trialCard: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#8BD6A7',
   },
   trialHeader: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 20,
     marginBottom: 16,
   },
   trialLabel: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 12,
     fontWeight: 'bold',
     letterSpacing: 1,
@@ -328,11 +328,11 @@ const styles = StyleSheet.create({
   trialDays: {
     fontSize: 64,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#8BD6A7',
   },
   trialDaysLabel: {
     fontSize: 24,
-    color: '#4CAF50',
+    color: '#8BD6A7',
     marginLeft: 8,
   },
   trialInfo: {
@@ -342,55 +342,55 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   trialInfoText: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 14,
   },
   trialNote: {
     fontSize: 13,
-    color: '#4CAF50',
+    color: '#8BD6A7',
   },
   pricingCard: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#405C65',
   },
   pricingHeader: {
-    backgroundColor: '#FF6B35',
+    backgroundColor: '#A6D608',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 20,
     marginBottom: 8,
   },
   pricingLabel: {
-    color: '#fff',
+    color: '#000000',
     fontSize: 12,
     fontWeight: 'bold',
     letterSpacing: 1,
   },
   pricingNote: {
     fontSize: 13,
-    color: '#888',
+    color: '#C2D0CE',
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+    backgroundColor: 'rgba(255, 122, 134, 0.1)',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
     gap: 8,
   },
   errorText: {
-    color: '#F44336',
+    color: '#FF7A86',
     fontSize: 14,
     flex: 1,
   },
   trialButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
     borderRadius: 12,
     padding: 18,
     flexDirection: 'row',
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   trialButtonText: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -411,10 +411,10 @@ const styles = StyleSheet.create({
   orLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#333',
+    backgroundColor: '#405C65',
   },
   orText: {
-    color: '#666',
+    color: '#9AADB0',
     paddingHorizontal: 16,
     fontSize: 14,
   },
@@ -427,20 +427,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
     borderWidth: 2,
-    borderColor: '#FF6B35',
+    borderColor: '#A6D608',
     marginBottom: 16,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   subscribeButtonText: {
-    color: '#FF6B35',
+    color: '#A6D608',
     fontSize: 18,
     fontWeight: 'bold',
   },
   terms: {
     fontSize: 12,
-    color: '#666',
+    color: '#9AADB0',
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 16,
@@ -453,6 +453,6 @@ const styles = StyleSheet.create({
   },
   securePaymentText: {
     fontSize: 13,
-    color: '#888',
+    color: '#C2D0CE',
   },
 });

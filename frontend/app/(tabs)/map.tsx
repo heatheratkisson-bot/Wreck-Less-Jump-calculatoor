@@ -5,17 +5,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
   ScrollView,
   RefreshControl,
   Modal,
   InteractionManager,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import Svg, { Circle, G, Text as SvgText, Rect, Line } from 'react-native-svg';
 import {
   fetchJsonWithBackend,
   getDeviceId,
@@ -24,7 +23,115 @@ import {
   MapLocation,
 } from '@/lib/appSupport';
 
-const { width } = Dimensions.get('window');
+const SATELLITE_MAP_HTML = `<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <style>
+      html, body, #map { width: 100%; height: 100%; margin: 0; background: #0F2026; }
+      .location-marker {
+        display: flex;
+        width: 28px;
+        height: 28px;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #F5FAF8;
+        border-radius: 50%;
+        color: #F5FAF8;
+        font: bold 12px sans-serif;
+        box-shadow: 0 1px 5px rgba(0, 0, 0, .7);
+      }
+      .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #1B3038; color: #F5FAF8; }
+      .leaflet-control-attribution { font-size: 9px; }
+      #map-error {
+        display: none;
+        position: absolute;
+        z-index: 1000;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 6px 10px;
+        border-radius: 6px;
+        background: rgba(11, 20, 24, .9);
+        color: #F5FAF8;
+        font: 12px sans-serif;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="map-error">Satellite imagery is unavailable. Check your internet connection.</div>
+    <script>
+      window.addEventListener('error', () => {
+        const error = document.getElementById('map-error');
+        if (error) error.style.display = 'block';
+      });
+    </script>
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script>
+      const map = L.map('map', { zoomControl: false }).setView([39.8283, -98.5795], 4);
+      const tileLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          maxZoom: 19,
+          attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+        }
+      ).addTo(map);
+      const markers = L.layerGroup().addTo(map);
+      tileLayer.on('tileerror', () => {
+        document.getElementById('map-error').style.display = 'block';
+      });
+      tileLayer.on('tileload', () => {
+        document.getElementById('map-error').style.display = 'none';
+      });
+
+      window.updateSatelliteMap = ({ center, zoom, locations, userLocation }) => {
+        map.setView(center, zoom);
+        markers.clearLayers();
+
+        locations.forEach((location, index) => {
+          const color = location.is_shared ? '#8BD6A7' : '#A6D608';
+          const icon = L.divIcon({
+            className: '',
+            html: '<div class="location-marker" style="background:' + color + '">' + (index + 1) + '</div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16]
+          });
+          const marker = L.marker([location.latitude, location.longitude], { icon }).addTo(markers);
+          const popup = document.createElement('span');
+          popup.textContent = location.name;
+          marker.bindPopup(popup);
+          marker.on('click', () => {
+            window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'select', id: location.id }));
+          });
+        });
+
+        if (userLocation) {
+          L.circleMarker([userLocation.latitude, userLocation.longitude], {
+            radius: 8,
+            color: '#F5FAF8',
+            weight: 2,
+            fillColor: '#82B6FF',
+            fillOpacity: 1
+          }).bindPopup('You are here').addTo(markers);
+        }
+      };
+
+      window.addEventListener('load', () => setTimeout(() => map.invalidateSize(), 100));
+    </script>
+  </body>
+</html>`;
 
 export default function MapScreen() {
   const [locations, setLocations] = useState<MapLocation[]>([]);
@@ -35,6 +142,35 @@ export default function MapScreen() {
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 39.8283, lng: -98.5795 }); // US center
   const [mapZoom, setMapZoom] = useState(4);
   const isMountedRef = useRef(true);
+  const mapWebViewRef = useRef<WebView>(null);
+  const isMapLoadedRef = useRef(false);
+
+  const updateSatelliteMap = useCallback(() => {
+    if (!isMapLoadedRef.current) {
+      return;
+    }
+
+    const mapData = JSON.stringify({
+      center: [mapCenter.lat, mapCenter.lng],
+      zoom: mapZoom,
+      locations: locations.map(({ id, latitude, longitude, name, is_shared }) => ({
+        id,
+        latitude,
+        longitude,
+        name,
+        is_shared,
+      })),
+      userLocation,
+    }).replace(/</g, '\\u003c');
+
+    mapWebViewRef.current?.injectJavaScript(
+      `window.updateSatelliteMap(${mapData}); true;`
+    );
+  }, [locations, mapCenter, mapZoom, userLocation]);
+
+  useEffect(() => {
+    updateSatelliteMap();
+  }, [updateSatelliteMap]);
 
   const fetchLocations = useCallback(async () => {
     try {
@@ -126,144 +262,67 @@ export default function MapScreen() {
     });
   };
 
-  // Simple map projection (Mercator-like)
-  const projectToMap = (lat: number, lng: number, centerLat: number, centerLng: number, zoom: number) => {
-    const mapWidth = width - 40;
-    const mapHeight = 300;
-    const scale = Math.pow(2, zoom) * 0.5;
-    
-    const x = mapWidth / 2 + (lng - centerLng) * scale;
-    const y = mapHeight / 2 - (lat - centerLat) * scale * 1.2; // Adjust for latitude
-    
-    return { x: Math.max(20, Math.min(mapWidth - 20, x)), y: Math.max(20, Math.min(mapHeight - 20, y)) };
-  };
-
-  const renderSimpleMap = () => {
-    const mapWidth = width - 40;
-    const mapHeight = 300;
-
+  const renderSatelliteMap = () => {
     return (
       <View style={styles.mapContainer}>
-        <Svg width={mapWidth} height={mapHeight} style={styles.mapSvg}>
-          {/* Map background */}
-          <Rect x="0" y="0" width={mapWidth} height={mapHeight} fill="#1A1A1A" rx="12" />
-          
-          {/* Grid lines */}
-          {[...Array(5)].map((_, i) => (
-            <G key={`grid-${i}`}>
-              <Line
-                x1={0}
-                y1={(mapHeight / 4) * i}
-                x2={mapWidth}
-                y2={(mapHeight / 4) * i}
-                stroke="#2A2A2A"
-                strokeWidth="1"
-              />
-              <Line
-                x1={(mapWidth / 4) * i}
-                y1={0}
-                x2={(mapWidth / 4) * i}
-                y2={mapHeight}
-                stroke="#2A2A2A"
-                strokeWidth="1"
-              />
-            </G>
-          ))}
-          
-          {/* User location */}
-          {userLocation && (
-            <G>
-              <Circle
-                cx={projectToMap(userLocation.latitude, userLocation.longitude, mapCenter.lat, mapCenter.lng, mapZoom).x}
-                cy={projectToMap(userLocation.latitude, userLocation.longitude, mapCenter.lat, mapCenter.lng, mapZoom).y}
-                r="20"
-                fill="rgba(33, 150, 243, 0.2)"
-              />
-              <Circle
-                cx={projectToMap(userLocation.latitude, userLocation.longitude, mapCenter.lat, mapCenter.lng, mapZoom).x}
-                cy={projectToMap(userLocation.latitude, userLocation.longitude, mapCenter.lat, mapCenter.lng, mapZoom).y}
-                r="8"
-                fill="#2196F3"
-                stroke="#fff"
-                strokeWidth="2"
-              />
-            </G>
-          )}
-          
-          {/* Location markers */}
-          {locations.map((loc, index) => {
-            const pos = projectToMap(loc.latitude, loc.longitude, mapCenter.lat, mapCenter.lng, mapZoom);
-            const isSelected = selectedLocation?.id === loc.id;
-            
-            return (
-              <G key={loc.id}>
-                {/* Marker shadow/glow */}
-                <Circle
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={isSelected ? 18 : 14}
-                  fill={loc.is_shared ? 'rgba(76, 175, 80, 0.3)' : 'rgba(255, 107, 53, 0.3)'}
-                />
-                {/* Marker */}
-                <Circle
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={isSelected ? 12 : 10}
-                  fill={loc.is_shared ? '#4CAF50' : '#FF6B35'}
-                  stroke="#fff"
-                  strokeWidth="2"
-                  onPress={() => setSelectedLocation(loc)}
-                />
-                {/* Number label */}
-                <SvgText
-                  x={pos.x}
-                  y={pos.y + 4}
-                  fill="#fff"
-                  fontSize="10"
-                  fontWeight="bold"
-                  textAnchor="middle"
-                >
-                  {index + 1}
-                </SvgText>
-              </G>
-            );
-          })}
-        </Svg>
+        <WebView
+          ref={mapWebViewRef}
+          source={{ html: SATELLITE_MAP_HTML }}
+          style={styles.mapWebView}
+          originWhitelist={['*']}
+          javaScriptEnabled
+          domStorageEnabled
+          scrollEnabled={false}
+          nestedScrollEnabled
+          onLoadEnd={() => {
+            isMapLoadedRef.current = true;
+            updateSatelliteMap();
+          }}
+          onMessage={(event) => {
+            const message = JSON.parse(event.nativeEvent.data);
+            if (message.type === 'select') {
+              const location = locations.find((item) => item.id === message.id);
+              if (location) {
+                setSelectedLocation(location);
+              }
+            }
+          }}
+        />
         
         {/* Map controls */}
         <View style={styles.mapControls}>
           <TouchableOpacity
             style={styles.mapControlButton}
-            onPress={() => setMapZoom(Math.min(mapZoom + 1, 10))}
+            onPress={() => setMapZoom(Math.min(mapZoom + 1, 19))}
           >
-            <Ionicons name="add" size={20} color="#fff" />
+            <Ionicons name="add" size={20} color="#F5FAF8" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.mapControlButton}
             onPress={() => setMapZoom(Math.max(mapZoom - 1, 1))}
           >
-            <Ionicons name="remove" size={20} color="#fff" />
+            <Ionicons name="remove" size={20} color="#F5FAF8" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.mapControlButton}
             onPress={getUserLocation}
           >
-            <Ionicons name="locate" size={20} color="#2196F3" />
+            <Ionicons name="locate" size={20} color="#82B6FF" />
           </TouchableOpacity>
         </View>
         
         {/* Legend */}
         <View style={styles.mapLegend}>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#FF6B35' }]} />
+            <View style={[styles.legendDot, { backgroundColor: '#A6D608' }]} />
             <Text style={styles.legendText}>Private</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
+            <View style={[styles.legendDot, { backgroundColor: '#267A58' }]} />
             <Text style={styles.legendText}>Shared</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#2196F3' }]} />
+            <View style={[styles.legendDot, { backgroundColor: '#82B6FF' }]} />
             <Text style={styles.legendText}>You</Text>
           </View>
         </View>
@@ -285,7 +344,7 @@ export default function MapScreen() {
       }}
     >
       <View style={styles.locationCardHeader}>
-        <View style={[styles.locationNumber, { backgroundColor: loc.is_shared ? '#4CAF50' : '#FF6B35' }]}>
+        <View style={[styles.locationNumber, { backgroundColor: loc.is_shared ? '#267A58' : '#A6D608' }]}>
           <Text style={styles.locationNumberText}>{index + 1}</Text>
         </View>
         <View style={styles.locationInfo}>
@@ -296,22 +355,22 @@ export default function MapScreen() {
         </View>
         {loc.is_shared && (
           <View style={styles.sharedBadgeSmall}>
-            <Ionicons name="share-social" size={10} color="#fff" />
+            <Ionicons name="share-social" size={10} color="#F5FAF8" />
           </View>
         )}
       </View>
       
       <View style={styles.locationStats}>
         <View style={styles.locationStat}>
-          <Ionicons name="speedometer" size={14} color="#4CAF50" />
+          <Ionicons name="speedometer" size={14} color="#8BD6A7" />
           <Text style={styles.locationStatText}>{loc.required_speed_mph} mph</Text>
         </View>
         <View style={styles.locationStat}>
-          <Ionicons name="resize" size={14} color="#2196F3" />
+          <Ionicons name="resize" size={14} color="#82B6FF" />
           <Text style={styles.locationStatText}>{loc.gap_distance} ft</Text>
         </View>
         <View style={styles.locationStat}>
-          <Ionicons name="trending-up" size={14} color="#FF6B35" />
+          <Ionicons name="trending-up" size={14} color="#A6D608" />
           <Text style={styles.locationStatText}>{loc.ramp_angle}°</Text>
         </View>
       </View>
@@ -330,26 +389,9 @@ export default function MapScreen() {
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#FF6B35" />
+          <ActivityIndicator size="large" color="#A6D608" />
           <Text style={styles.loadingText}>Loading map data...</Text>
         </View>
-      ) : locations.length === 0 ? (
-        <ScrollView
-          contentContainerStyle={styles.emptyContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#FF6B35"
-            />
-          }
-        >
-          <Ionicons name="map-outline" size={64} color="#444" />
-          <Text style={styles.emptyText}>No locations saved</Text>
-          <Text style={styles.emptySubtext}>
-            Save a calculation with location enabled to see it on the map
-          </Text>
-        </ScrollView>
       ) : (
         <ScrollView
           style={styles.scrollView}
@@ -357,18 +399,28 @@ export default function MapScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor="#FF6B35"
+              tintColor="#A6D608"
             />
           }
         >
-          {/* Simple Map Visualization */}
-          {renderSimpleMap()}
+          {/* Satellite Map */}
+          {renderSatelliteMap()}
           
           {/* Location List */}
-          <View style={styles.locationsList}>
-            <Text style={styles.sectionTitle}>All Locations</Text>
-            {locations.map((loc, index) => renderLocationCard(loc, index))}
-          </View>
+          {locations.length > 0 ? (
+            <View style={styles.locationsList}>
+              <Text style={styles.sectionTitle}>All Locations</Text>
+              {locations.map((loc, index) => renderLocationCard(loc, index))}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="map-outline" size={48} color="#52666C" />
+              <Text style={styles.emptyText}>No locations saved</Text>
+              <Text style={styles.emptySubtext}>
+                Save a calculation with location enabled to see it on the map
+              </Text>
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -384,7 +436,7 @@ export default function MapScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{selectedLocation?.name}</Text>
               <TouchableOpacity onPress={() => setSelectedLocation(null)}>
-                <Ionicons name="close" size={24} color="#fff" />
+                <Ionicons name="close" size={24} color="#F5FAF8" />
               </TouchableOpacity>
             </View>
 
@@ -394,7 +446,7 @@ export default function MapScreen() {
                   {/* Location */}
                   <View style={styles.modalSection}>
                     <View style={styles.modalSectionHeader}>
-                      <Ionicons name="location" size={18} color="#FF6B35" />
+                      <Ionicons name="location" size={18} color="#A6D608" />
                       <Text style={styles.modalSectionTitle}>Location</Text>
                     </View>
                     <Text style={styles.modalText}>
@@ -406,7 +458,7 @@ export default function MapScreen() {
                   {/* Jump Stats */}
                   <View style={styles.modalSection}>
                     <View style={styles.modalSectionHeader}>
-                      <Ionicons name="stats-chart" size={18} color="#FF6B35" />
+                      <Ionicons name="stats-chart" size={18} color="#A6D608" />
                       <Text style={styles.modalSectionTitle}>Jump Stats</Text>
                     </View>
                     <View style={styles.modalStatsGrid}>
@@ -429,7 +481,7 @@ export default function MapScreen() {
                   {selectedLocation.is_shared && selectedLocation.share_code && (
                     <View style={styles.modalSection}>
                       <View style={styles.modalSectionHeader}>
-                        <Ionicons name="share-social" size={18} color="#4CAF50" />
+                        <Ionicons name="share-social" size={18} color="#8BD6A7" />
                         <Text style={styles.modalSectionTitle}>Shared</Text>
                       </View>
                       <View style={styles.shareCodeDisplay}>
@@ -442,7 +494,7 @@ export default function MapScreen() {
                   {/* Date */}
                   <View style={styles.modalSection}>
                     <View style={styles.modalSectionHeader}>
-                      <Ionicons name="calendar" size={18} color="#888" />
+                      <Ionicons name="calendar" size={18} color="#C2D0CE" />
                       <Text style={styles.modalSectionTitle}>Created</Text>
                     </View>
                     <Text style={styles.modalText}>{formatDate(selectedLocation.created_at)}</Text>
@@ -460,22 +512,22 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    backgroundColor: '#081116',
   },
   header: {
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    borderBottomColor: '#28434B',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   subtitle: {
     fontSize: 14,
-    color: '#888',
+    color: '#C2D0CE',
     marginTop: 4,
   },
   loadingContainer: {
@@ -484,7 +536,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: '#888',
+    color: '#C2D0CE',
     marginTop: 12,
   },
   emptyContainer: {
@@ -494,13 +546,13 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyText: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 18,
     marginTop: 16,
     fontWeight: '600',
   },
   emptySubtext: {
-    color: '#666',
+    color: '#9AADB0',
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
@@ -512,8 +564,11 @@ const styles = StyleSheet.create({
     margin: 20,
     marginBottom: 0,
     position: 'relative',
+    height: 300,
   },
-  mapSvg: {
+  mapWebView: {
+    width: '100%',
+    height: '100%',
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -524,14 +579,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mapControlButton: {
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     width: 36,
     height: 36,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#405C65',
   },
   mapLegend: {
     flexDirection: 'row',
@@ -550,7 +605,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   legendText: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 12,
   },
   locationsList: {
@@ -559,11 +614,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#fff',
+    color: '#F5FAF8',
     marginBottom: 16,
   },
   locationCard: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -571,7 +626,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   locationCardSelected: {
-    borderColor: '#FF6B35',
+    borderColor: '#A6D608',
   },
   locationCardHeader: {
     flexDirection: 'row',
@@ -587,7 +642,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   locationNumberText: {
-    color: '#fff',
+    color: '#000000',
     fontWeight: 'bold',
     fontSize: 12,
   },
@@ -595,17 +650,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   locationName: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 16,
     fontWeight: '600',
   },
   locationAddress: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 12,
     marginTop: 2,
   },
   sharedBadgeSmall: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#267A58',
     width: 20,
     height: 20,
     borderRadius: 10,
@@ -622,17 +677,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   locationStatText: {
-    color: '#ccc',
+    color: '#CED9D6',
     fontSize: 13,
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(3, 12, 16, 0.84)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#1B3038',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '70%',
@@ -643,12 +698,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    borderBottomColor: '#405C65',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#F5FAF8',
   },
   modalBody: {
     padding: 20,
@@ -663,19 +718,19 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalSectionTitle: {
-    color: '#fff',
+    color: '#F5FAF8',
     fontSize: 16,
     fontWeight: '600',
   },
   modalText: {
-    color: '#ccc',
+    color: '#CED9D6',
     fontSize: 14,
     lineHeight: 20,
   },
   modalStatsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 12,
     padding: 16,
   },
@@ -683,29 +738,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalStatValue: {
-    color: '#FF6B35',
+    color: '#A6D608',
     fontSize: 24,
     fontWeight: 'bold',
   },
   modalStatLabel: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 12,
     marginTop: 4,
   },
   shareCodeDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2A2A2A',
+    backgroundColor: '#28434B',
     borderRadius: 10,
     padding: 12,
   },
   shareCodeLabel: {
-    color: '#888',
+    color: '#C2D0CE',
     fontSize: 14,
     marginRight: 8,
   },
   shareCodeValue: {
-    color: '#4CAF50',
+    color: '#8BD6A7',
     fontSize: 18,
     fontWeight: 'bold',
     letterSpacing: 1,
