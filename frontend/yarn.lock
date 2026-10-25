@@ -3392,6 +3392,11 @@ expo-server@^57.0.3:
   resolved "https://registry.npmjs.org/expo-server/-/expo-server-57.0.3.tgz"
   integrity sha512-aK+LdKzauHSGmsOStZtyxdzv0zWssCkxTw3m4QuOhfDSJsZaMRTd9O41d8ixU/QfELTbaJ0oRNcF7JFV/7O9YQ==
 
+expo-speech@~57.0.3:
+  version "57.0.3"
+  resolved "https://registry.npmjs.org/expo-speech/-/expo-speech-57.0.3.tgz"
+  integrity sha512-rcO8izKziksrV4X3qQ5g+prFNTZmLYDEGEVnTvuvpOZDwjzP9nsdoaFymhY+qj9AJfMcpvR7Wshm+zpislyJBg==
+
 expo-splash-screen@~57.0.8:
   version "57.0.9"
   resolved "https://registry.npmjs.org/expo-splash-screen/-/expo-splash-screen-57.0.9.tgz"

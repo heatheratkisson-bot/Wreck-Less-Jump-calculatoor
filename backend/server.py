@@ -117,8 +117,8 @@ class JumpCalculationInput(BaseModel):
     ramp_height: float = Field(..., description="Ramp height in feet")
     ramp_angle: float = Field(..., description="Ramp angle in degrees")
     gap_distance: float = Field(..., description="Gap distance to clear in feet")
-    bike_weight: float = Field(..., description="Dirt bike weight in pounds")
-    rider_weight: float = Field(..., description="Rider body weight in pounds")
+    bike_weight: float = Field(..., gt=0, description="Dirt bike weight in pounds, or kilograms when unit_system is metric")
+    rider_weight: float = Field(..., gt=0, description="Rider body weight in pounds, or kilograms when unit_system is metric")
     landing_height: Optional[float] = Field(default=0, description="Landing ramp height difference in feet (negative if lower)")
     unit_system: Optional[str] = Field(default="imperial", description="Unit system: 'imperial' or 'metric'")
 
@@ -838,6 +838,8 @@ async def calculate_jump(input_data: JumpCalculationInput):
         raise HTTPException(status_code=400, detail="Gap distance must be positive")
     
     total_weight_lbs = input_data.bike_weight + input_data.rider_weight
+    if input_data.unit_system == "metric":
+        total_weight_lbs *= 2.20462
     total_weight_kg = total_weight_lbs * 0.453592
     
     if total_weight_lbs > 500:

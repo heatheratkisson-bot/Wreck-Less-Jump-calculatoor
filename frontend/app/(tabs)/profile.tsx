@@ -19,7 +19,8 @@ import * as ImagePicker from 'expo-image-picker';
 
 import {
   MOTORCYCLE_BRANDS,
-  getMotorcyclesByBrand,
+  MOTORCYCLE_YEARS,
+  getMotorcyclesByBrandAndYear,
   MotorcycleModel,
 } from '@/lib/motorcycleData';
 import {
@@ -34,18 +35,24 @@ import {
 } from '@/lib/appSupport';
 
 const MAX_SAVED_PROFILES = 3;
+type BikePickerField = 'year' | 'brand' | 'model';
 
 export default function Profile() {
   const [profiles, setProfiles] = useState<SavedBikeProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [jumps, setJumps] = useState<RiderJumpLog[]>([]);
-  const [brands] = useState<string[]>(MOTORCYCLE_BRANDS);
   const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
-  const [models, setModels] = useState<MotorcycleModel[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedModel, setSelectedModel] = useState<MotorcycleModel | null>(null);
+  const [manualEntry, setManualEntry] = useState(false);
+  const [manualBrand, setManualBrand] = useState('');
+  const [manualWeight, setManualWeight] = useState('');
+  const [newBikeImageUri, setNewBikeImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showBrandModal, setShowBrandModal] = useState(false);
-  const [showModelModal, setShowModelModal] = useState(false);
+  const [showBikeModal, setShowBikeModal] = useState(false);
+  const [showPickerModal, setShowPickerModal] = useState(false);
+  const [pickerField, setPickerField] = useState<BikePickerField>('year');
   const [showJumpModal, setShowJumpModal] = useState(false);
   const [speed, setSpeed] = useState('');
   const [gap, setGap] = useState('');
@@ -96,22 +103,64 @@ export default function Profile() {
   const topSpeed = completedJumps.reduce((top, jump) => Math.max(top, jump.speedMph), 0);
   const highestJump = completedJumps.reduce((top, jump) => Math.max(top, jump.jumpHeightFeet), 0);
   const farthestGap = completedJumps.reduce((top, jump) => Math.max(top, jump.gapFeet), 0);
-  const modelsForBrand = (brand: string) => getMotorcyclesByBrand(brand);
+  const modelsForBrandYear =
+    selectedBrand && selectedBrand !== 'Other'
+      ? getMotorcyclesByBrandAndYear(selectedBrand, selectedYear)
+      : [];
 
-  const chooseBrand = (brand: string) => {
-    setSelectedBrand(brand);
-    setModels(modelsForBrand(brand));
-    setShowBrandModal(false);
-    setShowModelModal(true);
+  const openBikePicker = (field: BikePickerField) => {
+    setPickerField(field);
+    setShowPickerModal(true);
+  };
+
+  const selectBikePickerOption = (value: string) => {
+    if (pickerField === 'year') {
+      setSelectedYear(Number(value));
+      setSelectedModel(null);
+    } else if (pickerField === 'brand') {
+      setSelectedBrand(value);
+      setSelectedModel(null);
+      setManualBrand(value === 'Other' ? '' : value);
+    } else {
+      const motorcycle = modelsForBrandYear.find((item) => item.id === value);
+      if (motorcycle) {
+        setSelectedModel(motorcycle);
+      }
+    }
+    setShowPickerModal(false);
+  };
+
+  const openAddBike = () => {
+    setSelectedYear(2026);
+    setSelectedBrand(null);
+    setSelectedModel(null);
+    setManualEntry(false);
+    setManualBrand('');
+    setManualWeight('');
+    setNewBikeImageUri(null);
+    setShowBikeModal(true);
   };
 
   const saveBike = async (motorcycle: MotorcycleModel) => {
     setSaving(true);
     try {
       const profile = await addRiderBikeProfile(motorcycle);
+      if (newBikeImageUri) {
+        try {
+          await saveRiderBikeProfileImage(profile.id, newBikeImageUri);
+        } catch (error) {
+          console.error('Bike was saved, but its photo could not be saved:', error);
+          await loadData();
+          setActiveProfileId(profile.id);
+          setShowBikeModal(false);
+          setSelectedBrand(null);
+          Alert.alert('Bike saved without photo', 'The bike profile was saved, but its picture could not be saved. You can add it from the profile.');
+          return;
+        }
+      }
       await loadData();
       setActiveProfileId(profile.id);
-      setShowModelModal(false);
+      setShowBikeModal(false);
       setSelectedBrand(null);
     } catch (error) {
       console.error('Error saving bike profile:', error);
@@ -124,6 +173,32 @@ export default function Profile() {
     }
   };
 
+  const saveManualBike = async () => {
+    const brand = (selectedBrand === 'Other' ? manualBrand : selectedBrand)?.trim() ?? '';
+    const weight = Number(manualWeight);
+
+    if (!brand) {
+      Alert.alert('Add bike details', 'Enter the bike make.');
+      return;
+    }
+    if (!Number.isFinite(weight) || weight < 40 || weight > 1000) {
+      Alert.alert('Check bike weight', 'Enter a bike weight between 40 and 1,000 pounds.');
+      return;
+    }
+    await saveBike({
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      brand,
+      model: 'Custom',
+      year: selectedYear,
+      engineCC: 0,
+      torque_ft_lbs: 0,
+      weight_lbs: weight,
+      horsepower: 0,
+      type: 'Custom',
+      description: 'User-entered bike specifications',
+    });
+  };
+
   const chooseBikeProfile = async (profile: SavedBikeProfile) => {
     try {
       await selectRiderBikeProfile(profile.id);
@@ -134,35 +209,42 @@ export default function Profile() {
     }
   };
 
+  const selectBikePhoto = async (): Promise<string | null> => {
+    if (Platform.OS !== 'web') {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Photo access needed',
+          'Allow access to your photos to add a picture to this bike profile.'
+        );
+        return null;
+      }
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.75,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]) {
+      return null;
+    }
+
+    const asset = result.assets[0];
+    if (!asset.base64) {
+      throw new Error('The selected photo could not be saved. Please try another image.');
+    }
+    return `data:${asset.mimeType ?? 'image/jpeg'};base64,${asset.base64}`;
+  };
+
   const chooseBikePhoto = async (profile: SavedBikeProfile) => {
     try {
-      if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert(
-            'Photo access needed',
-            'Allow access to your photos to add a picture to this bike profile.'
-          );
-          return;
-        }
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.75,
-        base64: true,
-      });
-      if (result.canceled || !result.assets[0]) {
+      const imageUri = await selectBikePhoto();
+      if (!imageUri) {
         return;
       }
-
-      const asset = result.assets[0];
-      if (!asset.base64) {
-        throw new Error('The selected photo could not be saved. Please try another image.');
-      }
-      const imageUri = `data:${asset.mimeType ?? 'image/jpeg'};base64,${asset.base64}`;
       await saveRiderBikeProfileImage(profile.id, imageUri);
       await loadData();
     } catch (error) {
@@ -295,7 +377,8 @@ export default function Profile() {
                   {profile.motorcycle.brand} {profile.motorcycle.model}
                 </Text>
                 <Text style={styles.profileMeta}>
-                  {profile.motorcycle.year} · {profile.motorcycle.engineCC} cc
+                  {profile.motorcycle.year}
+                  {profile.motorcycle.engineCC > 0 ? ` · ${profile.motorcycle.engineCC} cc` : ''}
                 </Text>
                 <Text style={styles.profileRecord}>
                   {profileCompletedCount} completed · {profileWreckCount} wrecks
@@ -318,7 +401,7 @@ export default function Profile() {
         {profiles.length < MAX_SAVED_PROFILES && (
           <TouchableOpacity
             style={styles.addBikeButton}
-            onPress={() => setShowBrandModal(true)}
+            onPress={openAddBike}
             accessibilityRole="button"
           >
             <Ionicons name="add-circle-outline" size={22} color="#A6D608" />
@@ -376,12 +459,16 @@ export default function Profile() {
             <View style={styles.detailsCard}>
               <Text style={styles.detailTitle}>Bike details</Text>
               <Text style={styles.detailText}>
-                {activeProfile.motorcycle.year} · {activeProfile.motorcycle.engineCC} cc · {activeProfile.motorcycle.type}
+                {activeProfile.motorcycle.year}
+                {activeProfile.motorcycle.engineCC > 0 ? ` · ${activeProfile.motorcycle.engineCC} cc` : ''}
+                {activeProfile.motorcycle.type ? ` · ${activeProfile.motorcycle.type}` : ''}
               </Text>
               <Text style={styles.detailText}>
-                {activeProfile.motorcycle.torque_ft_lbs} ft-lb torque · {activeProfile.motorcycle.weight_lbs} lb dry weight
+                {activeProfile.motorcycle.weight_lbs} lb dry weight
               </Text>
-              <Text style={styles.detailText}>{activeProfile.motorcycle.horsepower} hp</Text>
+              {activeProfile.motorcycle.horsepower > 0 && (
+                <Text style={styles.detailText}>{activeProfile.motorcycle.horsepower} hp</Text>
+              )}
             </View>
           </>
         ) : (
@@ -395,61 +482,214 @@ export default function Profile() {
         )}
       </ScrollView>
 
-      <Modal visible={showBrandModal} animationType="slide" onRequestClose={() => setShowBrandModal(false)}>
+      <Modal visible={showBikeModal} animationType="slide" onRequestClose={() => setShowBikeModal(false)}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalEyebrow}>NEW BIKE · STEP 1 OF 2</Text>
-              <Text style={styles.modalTitle}>Choose a brand</Text>
+              <Text style={styles.modalEyebrow}>NEW BIKE</Text>
+              <Text style={styles.modalTitle}>Select your bike</Text>
             </View>
-            <TouchableOpacity onPress={() => setShowBrandModal(false)} accessibilityLabel="Close">
+            <TouchableOpacity onPress={() => setShowBikeModal(false)} accessibilityLabel="Close">
               <Ionicons name="close" size={24} color="#F5FAF8" />
             </TouchableOpacity>
           </View>
-          <FlatList
-            data={brands}
-            keyExtractor={(brand) => brand}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.modalItem} onPress={() => chooseBrand(item)}>
-                <Text style={styles.modalItemText}>{item}</Text>
-                <Ionicons name="chevron-forward" size={18} color="#9AADB0" />
+          <ScrollView contentContainerStyle={styles.bikeFormContent} keyboardShouldPersistTaps="handled">
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={newBikeImageUri ? 'Change bike picture' : 'Add bike picture'}
+              onPress={() => {
+                void selectBikePhoto()
+                  .then((imageUri) => {
+                    if (imageUri) {
+                      setNewBikeImageUri(imageUri);
+                    }
+                  })
+                  .catch((error: unknown) => {
+                    console.error('Could not select bike picture:', error);
+                    Alert.alert('Could not add photo', 'Please select another image and try again.');
+                  });
+              }}
+              style={styles.newBikePhotoButton}
+            >
+              <View style={styles.newBikePhotoFrame}>
+                {newBikeImageUri ? (
+                  <Image source={{ uri: newBikeImageUri }} style={styles.newBikePhoto} />
+                ) : (
+                  <Ionicons name="bicycle" size={32} color="#A6D608" />
+                )}
+                <View style={styles.newBikePhotoBadge}>
+                  <Ionicons name="camera" size={12} color="#000000" />
+                </View>
+              </View>
+              <Text style={styles.newBikePhotoTitle}>
+                {newBikeImageUri ? 'Change bike picture' : 'Add a bike picture'}
+              </Text>
+              <Text style={styles.newBikePhotoHint}>Optional · shown in your bike profile</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.pickerLabel}>Year</Text>
+            <TouchableOpacity style={styles.dropdownButton} onPress={() => openBikePicker('year')}>
+              <Text style={styles.dropdownButtonText}>{selectedYear}</Text>
+              <Ionicons name="chevron-down" size={18} color="#A6D608" />
+            </TouchableOpacity>
+
+            <Text style={styles.pickerLabel}>Make</Text>
+            <TouchableOpacity style={styles.dropdownButton} onPress={() => openBikePicker('brand')}>
+              <Text style={[styles.dropdownButtonText, !selectedBrand && styles.dropdownPlaceholder]}>
+                {selectedBrand || 'Choose a make'}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color="#A6D608" />
+            </TouchableOpacity>
+
+            {!manualEntry ? (
+              <>
+                <Text style={styles.pickerLabel}>Model</Text>
+                <TouchableOpacity
+                  style={[styles.dropdownButton, !selectedBrand && styles.dropdownDisabled]}
+                  onPress={() => openBikePicker('model')}
+                  disabled={!selectedBrand}
+                >
+                  <Text style={[styles.dropdownButtonText, !selectedModel && styles.dropdownPlaceholder]}>
+                    {selectedModel?.model ?? (selectedBrand ? 'Choose a model' : 'Choose a make first')}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color="#A6D608" />
+                </TouchableOpacity>
+                {selectedModel && (
+                  <View style={styles.specPreview}>
+                    <Text style={styles.specPreviewText}>
+                      {selectedModel.engineCC > 0 ? `${selectedModel.engineCC} cc · ` : ''}
+                      {selectedModel.weight_lbs} lb dry weight
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.catalogNote}>
+                  The model list shows bikes with saved specifications for this exact year and make. The built-in catalog is limited; verify dry weight against your owner’s manual.
+                </Text>
+              </>
+            ) : (
+              <>
+                {selectedBrand === 'Other' && (
+                  <>
+                    <Text style={styles.pickerLabel}>Make</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      value={manualBrand}
+                      onChangeText={setManualBrand}
+                      placeholder="Enter the bike make"
+                      placeholderTextColor="#9AADB0"
+                    />
+                  </>
+                )}
+                <Text style={styles.pickerLabel}>Dry weight (lb)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={manualWeight}
+                  onChangeText={setManualWeight}
+                  placeholder="Check your owner's manual"
+                  placeholderTextColor="#9AADB0"
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.catalogNote}>
+                  Enter the manufacturer’s dry weight when available. Bike weight is used in the jump calculation.
+                </Text>
+              </>
+            )}
+
+            <TouchableOpacity
+              style={styles.manualEntryButton}
+              onPress={() => {
+                setManualEntry((current) => !current);
+                setSelectedModel(null);
+              }}
+            >
+              <Ionicons name={manualEntry ? 'list' : 'create-outline'} size={18} color="#A6D608" />
+              <Text style={styles.manualEntryText}>
+                {manualEntry ? 'Choose a catalog model instead' : 'Can’t find your bike? Enter it manually'}
+              </Text>
+            </TouchableOpacity>
+
+            {!manualEntry && selectedModel && (
+              <Text style={styles.calculationNote}>
+                Bike weight will fill in on How Fast.
+              </Text>
+            )}
+
+            {manualEntry ? (
+              <TouchableOpacity
+                style={[styles.saveBikeButton, saving && styles.saveBikeButtonDisabled]}
+                onPress={() => void saveManualBike()}
+                disabled={saving || !selectedBrand}
+              >
+                {saving ? <ActivityIndicator color="#000000" /> : <Ionicons name="checkmark" size={20} color="#000000" />}
+                <Text style={styles.saveBikeButtonText}>Save bike</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.saveBikeButton, (!selectedModel || saving) && styles.saveBikeButtonDisabled]}
+                onPress={() => selectedModel && void saveBike(selectedModel)}
+                disabled={!selectedModel || saving}
+              >
+                {saving ? <ActivityIndicator color="#000000" /> : <Ionicons name="checkmark" size={20} color="#000000" />}
+                <Text style={styles.saveBikeButtonText}>Save bike</Text>
               </TouchableOpacity>
             )}
-          />
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
-      <Modal visible={showModelModal} animationType="slide" onRequestClose={() => setShowModelModal(false)}>
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <View>
-              <Text style={styles.modalEyebrow}>NEW BIKE · STEP 2 OF 2</Text>
-              <Text style={styles.modalTitle}>Choose a {selectedBrand} bike</Text>
-            </View>
-            <TouchableOpacity onPress={() => setShowModelModal(false)} accessibilityLabel="Close">
-              <Ionicons name="close" size={24} color="#F5FAF8" />
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={models}
-            keyExtractor={(motorcycle) => motorcycle.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.modalItem}
-                onPress={() => void saveBike(item)}
-                disabled={saving}
-              >
-                <View style={styles.modalBikeInfo}>
-                  <Text style={styles.modalItemText}>{`${item.model} (${item.year})`}</Text>
-                  <Text style={styles.modalItemSubtitle}>
-                    {`${item.engineCC} cc · ${item.torque_ft_lbs} ft-lb · ${item.weight_lbs} lb`}
-                  </Text>
-                </View>
-                {saving ? <ActivityIndicator color="#A6D608" /> : <Ionicons name="add-circle-outline" size={22} color="#A6D608" />}
+      <Modal visible={showPickerModal} animationType="slide" transparent onRequestClose={() => setShowPickerModal(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {pickerField === 'year' ? 'Choose a year' : pickerField === 'brand' ? 'Choose a make' : 'Choose a model'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowPickerModal(false)} accessibilityLabel="Close choices">
+                <Ionicons name="close" size={24} color="#F5FAF8" />
               </TouchableOpacity>
-            )}
-          />
-        </SafeAreaView>
+            </View>
+            <FlatList
+              data={
+                pickerField === 'year'
+                  ? MOTORCYCLE_YEARS.map((year) => ({ label: String(year), value: String(year) }))
+                  : pickerField === 'brand'
+                    ? MOTORCYCLE_BRANDS.map((brand) => ({ label: brand, value: brand }))
+                    : modelsForBrandYear.map((motorcycle) => ({
+                        label: `${motorcycle.model} · ${motorcycle.weight_lbs} lb dry weight`,
+                        value: motorcycle.id,
+                      }))
+              }
+              keyExtractor={(option) => option.value}
+              ListEmptyComponent={
+                pickerField === 'model' ? (
+                  <View style={styles.emptyModelList}>
+                    <Ionicons name="bicycle-outline" size={32} color="#9AADB0" />
+                    <Text style={styles.emptyModelTitle}>No verified models listed</Text>
+                    <Text style={styles.emptyModelText}>
+                      There are no saved model specifications for {selectedYear} {selectedBrand}. Add your bike manually and enter its dry weight.
+                    </Text>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      style={styles.emptyModelButton}
+                      onPress={() => {
+                        setShowPickerModal(false);
+                        setManualEntry(true);
+                      }}
+                    >
+                      <Text style={styles.emptyModelButtonText}>Enter bike manually</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null
+              }
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.modalItem} onPress={() => selectBikePickerOption(item.value)}>
+                  <Text style={styles.modalItemText}>{item.label}</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#9AADB0" />
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
       </Modal>
 
       <Modal
@@ -596,6 +836,35 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#35515A' },
   modalEyebrow: { color: '#A6D608', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   modalTitle: { color: '#F5FAF8', fontSize: 20, fontWeight: '700', marginTop: 4 },
+  bikeFormContent: { padding: 18, paddingBottom: 32 },
+  newBikePhotoButton: { alignItems: 'center', paddingVertical: 8, marginBottom: 4 },
+  newBikePhotoFrame: { width: 78, height: 78, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#49636A', borderRadius: 24, backgroundColor: '#1B3038', overflow: 'visible' },
+  newBikePhoto: { width: '100%', height: '100%', borderRadius: 23 },
+  newBikePhotoBadge: { position: 'absolute', right: -5, bottom: -4, width: 25, height: 25, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#081116', borderRadius: 13, backgroundColor: '#A6D608' },
+  newBikePhotoTitle: { color: '#A6D608', fontSize: 13, fontWeight: '700', marginTop: 10 },
+  newBikePhotoHint: { color: '#9AADB0', fontSize: 11, marginTop: 3 },
+  pickerLabel: { color: '#CED9D6', fontSize: 13, fontWeight: '700', marginTop: 14, marginBottom: 7 },
+  dropdownButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, borderWidth: 1, borderColor: '#405C65', borderRadius: 10, backgroundColor: '#1B3038' },
+  dropdownDisabled: { opacity: 0.65 },
+  dropdownButtonText: { color: '#F5FAF8', fontSize: 15, fontWeight: '600' },
+  dropdownPlaceholder: { color: '#9AADB0', fontWeight: '400' },
+  specPreview: { padding: 12, marginTop: 8, borderRadius: 10, backgroundColor: '#1B3038' },
+  specPreviewText: { color: '#8BD6A7', fontSize: 13, fontWeight: '600' },
+  catalogNote: { color: '#C2D0CE', fontSize: 12, lineHeight: 18, marginTop: 12 },
+  calculationNote: { color: '#E8B86D', fontSize: 12, lineHeight: 18, marginTop: 12 },
+  formInput: { minHeight: 48, paddingHorizontal: 12, borderWidth: 1, borderColor: '#405C65', borderRadius: 10, backgroundColor: '#1B3038', color: '#F5FAF8', fontSize: 15 },
+  manualEntryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
+  manualEntryText: { color: '#A6D608', fontSize: 13, fontWeight: '700', textAlign: 'center' },
+  saveBikeButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4, borderRadius: 12, backgroundColor: '#A6D608' },
+  saveBikeButtonDisabled: { opacity: 0.55 },
+  saveBikeButtonText: { color: '#000000', fontSize: 15, fontWeight: '800' },
+  pickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(3, 12, 16, 0.75)' },
+  pickerSheet: { maxHeight: '75%', backgroundColor: '#081116', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+  emptyModelList: { alignItems: 'center', paddingHorizontal: 24, paddingVertical: 32 },
+  emptyModelTitle: { color: '#F5FAF8', fontSize: 16, fontWeight: '700', marginTop: 12 },
+  emptyModelText: { color: '#C2D0CE', fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 8 },
+  emptyModelButton: { paddingHorizontal: 18, paddingVertical: 12, marginTop: 18, borderRadius: 10, backgroundColor: '#A6D608' },
+  emptyModelButtonText: { color: '#000000', fontSize: 14, fontWeight: '700' },
   modalItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#28434B' },
   modalBikeInfo: { flex: 1 },
   modalItemText: { color: '#F5FAF8', fontSize: 16, fontWeight: '600' },

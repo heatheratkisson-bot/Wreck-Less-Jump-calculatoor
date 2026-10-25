@@ -3,8 +3,6 @@ import { Platform } from 'react-native';
 import {
   DEFAULT_MOTORCYCLE,
   MotorcycleModel,
-  calculateAccelerationFactor,
-  calculateTorqueBonus,
   getMotorcyclesByBrand,
 } from './motorcycleData';
 
@@ -251,13 +249,30 @@ export async function getDeviceId(): Promise<string> {
 }
 
 export async function getSelectedMotorcycle(): Promise<MotorcycleModel> {
-  const savedId = await getStoredJson<string | null>(MOTORCYCLE_PROFILE_STORAGE_KEY, null);
-  if (!savedId) {
+  const savedSelection = await getStoredJson<string | MotorcycleModel | null>(
+    MOTORCYCLE_PROFILE_STORAGE_KEY,
+    null
+  );
+  if (!savedSelection) {
+    return DEFAULT_MOTORCYCLE;
+  }
+
+  if (typeof savedSelection === 'object') {
+    if (
+      typeof savedSelection.id === 'string' &&
+      typeof savedSelection.brand === 'string' &&
+      typeof savedSelection.model === 'string' &&
+      Number.isFinite(savedSelection.weight_lbs) &&
+      Number.isFinite(savedSelection.torque_ft_lbs)
+    ) {
+      return savedSelection;
+    }
+    console.error('Saved motorcycle details have an invalid format.');
     return DEFAULT_MOTORCYCLE;
   }
 
   const allMotorcycles = getMotorcyclesByBrand();
-  return allMotorcycles.find((motorcycle) => motorcycle.id === savedId) ?? DEFAULT_MOTORCYCLE;
+  return allMotorcycles.find((motorcycle) => motorcycle.id === savedSelection) ?? DEFAULT_MOTORCYCLE;
 }
 
 export async function saveSelectedMotorcycle(motorcycle: MotorcycleModel | null): Promise<void> {
@@ -266,7 +281,7 @@ export async function saveSelectedMotorcycle(motorcycle: MotorcycleModel | null)
     return;
   }
 
-  await setStoredJson(MOTORCYCLE_PROFILE_STORAGE_KEY, motorcycle.id);
+  await setStoredJson(MOTORCYCLE_PROFILE_STORAGE_KEY, motorcycle);
 }
 
 function createBikeProfileId(): string {
@@ -453,30 +468,15 @@ export function applyMotorcycleAdjustmentsToResult(
     return result;
   }
 
-  const accelerationFactor = calculateAccelerationFactor(motorcycle);
-  const torqueBonus = calculateTorqueBonus(motorcycle);
-  const adjustedRequiredSpeedMph = Math.max(
-    0,
-    result.required_speed_mph / accelerationFactor + torqueBonus * 0.25
-  );
-
-  const adjustedRequiredSpeedKph = adjustedRequiredSpeedMph * 1.60934;
-  const adjustedSafetyMph = adjustedRequiredSpeedMph * 1.15;
-  const adjustedSafetyKph = adjustedSafetyMph * 1.60934;
   const filteredWarnings = result.warnings.filter(
-    (warning) => !warning.includes('influencing the jump profile.')
+    (warning) => !warning.includes('Torque is not included in the airborne jump-speed estimate.')
   );
 
   return {
     ...result,
-    required_speed_mph: Number(adjustedRequiredSpeedMph.toFixed(2)),
-    required_speed_kph: Number(adjustedRequiredSpeedKph.toFixed(2)),
-    required_speed_fps: Number((adjustedRequiredSpeedMph * 1.4667).toFixed(2)),
-    safety_speed_mph: Number(adjustedSafetyMph.toFixed(2)),
-    safety_speed_kph: Number(adjustedSafetyKph.toFixed(2)),
     warnings: [
       ...filteredWarnings,
-      `${motorcycle.brand} ${motorcycle.model} (${motorcycle.engineCC}cc, ${motorcycle.torque_ft_lbs} ft-lb torque, ${motorcycle.weight_lbs} lb dry weight) is influencing the jump profile.`,
+      `Bike profile: ${motorcycle.brand} ${motorcycle.model} (${motorcycle.weight_lbs} lb dry weight).`,
     ],
   };
 }
@@ -710,8 +710,15 @@ export function calculateJumpLocally(inputData: JumpCalculationInput): Calculati
     throw new Error('Gap distance must be positive');
   }
 
+  if (inputData.bike_weight <= 0 || inputData.rider_weight <= 0) {
+    throw new Error('Bike weight and rider weight must be positive');
+  }
+
   const warnings: string[] = [];
-  const totalWeightLbs = inputData.bike_weight + inputData.rider_weight;
+  const totalWeightLbs =
+    inputData.unit_system === 'metric'
+      ? (inputData.bike_weight + inputData.rider_weight) * 2.20462
+      : inputData.bike_weight + inputData.rider_weight;
   const totalWeightKg = totalWeightLbs * 0.453592;
 
   if (totalWeightLbs > 500) {

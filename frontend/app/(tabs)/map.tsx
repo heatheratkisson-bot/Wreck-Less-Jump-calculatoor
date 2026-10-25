@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Text,
   View,
@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   fetchJsonWithBackend,
   getDeviceId,
@@ -46,6 +47,19 @@ const SATELLITE_MAP_HTML = `<!doctype html>
         color: #F5FAF8;
         font: bold 12px sans-serif;
         box-shadow: 0 1px 5px rgba(0, 0, 0, .7);
+      }
+      .focused-marker {
+        display: flex;
+        width: 36px;
+        height: 36px;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid #FFFFFF;
+        border-radius: 50%;
+        background: #E85D3F;
+        color: #FFFFFF;
+        font: bold 18px sans-serif;
+        box-shadow: 0 1px 8px rgba(0, 0, 0, .9);
       }
       .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #1B3038; color: #F5FAF8; }
       .leaflet-control-attribution { font-size: 9px; }
@@ -96,11 +110,12 @@ const SATELLITE_MAP_HTML = `<!doctype html>
         document.getElementById('map-error').style.display = 'none';
       });
 
-      window.updateSatelliteMap = ({ center, zoom, locations, userLocation }) => {
+      window.updateSatelliteMap = ({ center, zoom, locations, userLocation, focusedJump }) => {
         map.setView(center, zoom);
         markers.clearLayers();
 
         locations.forEach((location, index) => {
+          if (focusedJump && focusedJump.id === location.id) return;
           const color = location.is_shared ? '#8BD6A7' : '#A6D608';
           const icon = L.divIcon({
             className: '',
@@ -116,6 +131,22 @@ const SATELLITE_MAP_HTML = `<!doctype html>
             window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'select', id: location.id }));
           });
         });
+
+        if (focusedJump) {
+          const icon = L.divIcon({
+            className: '',
+            html: '<div class="focused-marker"><span aria-hidden="true">★</span></div>',
+            iconSize: [42, 42],
+            iconAnchor: [21, 21]
+          });
+          const focusedMarker = L.marker(
+            [focusedJump.latitude, focusedJump.longitude],
+            { icon, zIndexOffset: 1000 }
+          ).addTo(markers);
+          const popup = document.createElement('span');
+          popup.textContent = focusedJump.name;
+          focusedMarker.bindPopup(popup).openPopup();
+        }
 
         if (userLocation) {
           L.circleMarker([userLocation.latitude, userLocation.longitude], {
@@ -134,6 +165,36 @@ const SATELLITE_MAP_HTML = `<!doctype html>
 </html>`;
 
 export default function MapScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{
+    focusLat?: string;
+    focusLng?: string;
+    focusName?: string;
+    focusId?: string;
+  }>();
+  const focusedJump = useMemo(() => {
+    const latitude = Number(params.focusLat);
+    const longitude = Number(params.focusLng);
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      Math.abs(latitude) > 90 ||
+      Math.abs(longitude) > 180
+    ) {
+      return null;
+    }
+
+    return {
+      id: params.focusId,
+      name: params.focusName || 'Selected saved jump',
+      latitude,
+      longitude,
+    };
+  }, [params.focusId, params.focusLat, params.focusLng, params.focusName]);
+  const focusKey = focusedJump
+    ? `${focusedJump.id ?? ''}:${focusedJump.latitude}:${focusedJump.longitude}`
+    : '';
+  const [previousFocusKey, setPreviousFocusKey] = useState(focusKey);
   const [locations, setLocations] = useState<MapLocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -144,6 +205,15 @@ export default function MapScreen() {
   const isMountedRef = useRef(true);
   const mapWebViewRef = useRef<WebView>(null);
   const isMapLoadedRef = useRef(false);
+  const initialLocationDecisionMadeRef = useRef(false);
+
+  if (focusKey !== previousFocusKey) {
+    setPreviousFocusKey(focusKey);
+    if (focusedJump) {
+      setMapZoom(16);
+      setSelectedLocation(null);
+    }
+  }
 
   const updateSatelliteMap = useCallback(() => {
     if (!isMapLoadedRef.current) {
@@ -151,7 +221,9 @@ export default function MapScreen() {
     }
 
     const mapData = JSON.stringify({
-      center: [mapCenter.lat, mapCenter.lng],
+      center: focusedJump
+        ? [focusedJump.latitude, focusedJump.longitude]
+        : [mapCenter.lat, mapCenter.lng],
       zoom: mapZoom,
       locations: locations.map(({ id, latitude, longitude, name, is_shared }) => ({
         id,
@@ -161,12 +233,13 @@ export default function MapScreen() {
         is_shared,
       })),
       userLocation,
+      focusedJump,
     }).replace(/</g, '\\u003c');
 
     mapWebViewRef.current?.injectJavaScript(
       `window.updateSatelliteMap(${mapData}); true;`
     );
-  }, [locations, mapCenter, mapZoom, userLocation]);
+  }, [focusedJump, locations, mapCenter, mapZoom, userLocation]);
 
   useEffect(() => {
     updateSatelliteMap();
@@ -238,7 +311,6 @@ export default function MapScreen() {
   useEffect(() => {
     isMountedRef.current = true;
     const task = InteractionManager.runAfterInteractions(() => {
-      void getUserLocation();
       void fetchLocations();
     });
 
@@ -246,7 +318,31 @@ export default function MapScreen() {
       task.cancel();
       isMountedRef.current = false;
     };
-  }, [fetchLocations, getUserLocation]);
+  }, [fetchLocations]);
+
+  useEffect(() => {
+    if (initialLocationDecisionMadeRef.current) {
+      return;
+    }
+    initialLocationDecisionMadeRef.current = true;
+    if (focusedJump) {
+      return;
+    }
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      void getUserLocation();
+    });
+    return () => task.cancel();
+  }, [focusedJump, getUserLocation]);
+
+  const clearFocusedJump = () => {
+    router.setParams({
+      focusLat: undefined,
+      focusLng: undefined,
+      focusName: undefined,
+      focusId: undefined,
+    });
+  };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -305,7 +401,10 @@ export default function MapScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.mapControlButton}
-            onPress={getUserLocation}
+            onPress={() => {
+              clearFocusedJump();
+              void getUserLocation();
+            }}
           >
             <Ionicons name="locate" size={20} color="#82B6FF" />
           </TouchableOpacity>
@@ -338,6 +437,7 @@ export default function MapScreen() {
         selectedLocation?.id === loc.id && styles.locationCardSelected,
       ]}
       onPress={() => {
+        clearFocusedJump();
         setSelectedLocation(loc);
         setMapCenter({ lat: loc.latitude, lng: loc.longitude });
         setMapZoom(8);

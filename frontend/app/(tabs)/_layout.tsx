@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscription } from '../_layout';
+import { BeginnerGuideProvider } from '@/lib/BeginnerGuideContext';
 
 const TUTORIAL_STORAGE_KEY = 'wreckless_beginner_guide_seen_v1';
 
@@ -190,6 +191,12 @@ export default function TabLayout() {
     }
   };
 
+  const startBeginnerGuide = () => {
+    setTutorialStep(0);
+    setTutorialStorageError(false);
+    setShowTutorial(true);
+  };
+
   const currentTutorialStep = TUTORIAL_STEPS[tutorialStep];
   const selectTutorialRoute = (routeName: string) => {
     const matchingStep = TUTORIAL_STEPS.findIndex((step) => step.route === routeName);
@@ -210,61 +217,63 @@ export default function TabLayout() {
         </View>
       )}
 
-      <Tabs
-        initialRouteName="index"
-        screenOptions={{
-          headerShown: false,
-          lazy: true,
-          sceneStyle: { backgroundColor: '#081116' },
-          tabBarStyle: { display: 'none' },
-          tabBarShowLabel: false,
-        }}
-        tabBar={(props) => (
-          <CustomTabBar
-            {...props}
-            guideStep={currentTutorialStep}
-            showTutorial={showTutorial}
-            onSelectGuideRoute={selectTutorialRoute}
+      <BeginnerGuideProvider value={{ startBeginnerGuide }}>
+        <Tabs
+          initialRouteName="index"
+          screenOptions={{
+            headerShown: false,
+            lazy: true,
+            sceneStyle: { backgroundColor: '#081116' },
+            tabBarStyle: { display: 'none' },
+            tabBarShowLabel: false,
+          }}
+          tabBar={(props) => (
+            <CustomTabBar
+              {...props}
+              guideStep={currentTutorialStep}
+              showTutorial={showTutorial}
+              onSelectGuideRoute={selectTutorialRoute}
+            />
+          )}
+        >
+          <Tabs.Screen
+            name="index"
+            options={{
+              title: 'How Fast',
+            }}
           />
-        )}
-      >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'How Fast',
-          }}
-        />
-        <Tabs.Screen
-          name="ride-better"
-          options={{
-            title: 'Ride Better',
-          }}
-        />
-        <Tabs.Screen
-          name="measure"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
-          name="saved"
-          options={{
-            title: 'My Jumps',
-          }}
-        />
-        <Tabs.Screen
-          name="map"
-          options={{
-            title: 'Nearby Jumps',
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: 'My Bike',
-          }}
-        />
-      </Tabs>
+          <Tabs.Screen
+            name="ride-better"
+            options={{
+              title: 'Ride Better',
+            }}
+          />
+          <Tabs.Screen
+            name="measure"
+            options={{
+              href: null,
+            }}
+          />
+          <Tabs.Screen
+            name="saved"
+            options={{
+              title: 'My Jumps',
+            }}
+          />
+          <Tabs.Screen
+            name="map"
+            options={{
+              title: 'Nearby Jumps',
+            }}
+          />
+          <Tabs.Screen
+            name="profile"
+            options={{
+              title: 'My Bike',
+            }}
+          />
+        </Tabs>
+      </BeginnerGuideProvider>
 
       {showTutorial && (
         <View pointerEvents="box-none" style={styles.tutorialOverlay}>
@@ -398,7 +407,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   tutorialOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 20,
   },
   tutorialCard: {

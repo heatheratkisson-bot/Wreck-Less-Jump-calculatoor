@@ -1,6 +1,7 @@
 /**
- * Comprehensive motorcycle database for dirt bikes and dual-sport bikes.
- * Includes torque (ft-lbs), weight (lbs), and acceleration characteristics.
+ * Curated motorcycle reference models for dirt bikes and dual-sport bikes.
+ * The catalog is not a complete year/make/model registry; use custom profiles
+ * when a model or its specifications are not listed.
  */
 
 export interface MotorcycleModel {
@@ -12,22 +13,45 @@ export interface MotorcycleModel {
   torque_ft_lbs: number;
   weight_lbs: number;
   horsepower: number;
-  type: 'Motocross' | 'Enduro' | 'Dual-Sport' | 'Trail';
+  type: 'Motocross' | 'Enduro' | 'Dual-Sport' | 'Trail' | 'Custom';
   description?: string;
 }
 
 export const MOTORCYCLE_BRANDS = [
-  'Honda',
-  'Yamaha',
-  'Kawasaki',
-  'Suzuki',
-  'KTM',
-  'Husqvarna',
-  'Gas Gas',
+  'AJP',
+  'Aprilia',
   'Beta',
+  'Bimota',
+  'Bultaco',
+  'Can-Am',
+  'CFMOTO',
+  'Ducati',
+  'Fantic',
+  'Gas Gas',
+  'Honda',
+  'Husqvarna',
+  'Kawasaki',
+  'Kayo',
+  'Kove',
+  'KTM',
+  'Rieju',
   'Sherco',
+  'SSR Motorsports',
+  'Stark Future',
+  'Suzuki',
+  'Sur-Ron',
+  'SWM',
   'TM Racing',
+  'Triumph',
+  'Yamaha',
+  'Zero Motorcycles',
+  'Other',
 ];
+
+export const MOTORCYCLE_YEARS = Array.from(
+  { length: 27 },
+  (_, index) => 2026 - index
+);
 
 export const motorcycleDatabase: Record<string, MotorcycleModel[]> = {
   Honda: [
@@ -823,50 +847,11 @@ export function getMotorcyclesByBrand(brand?: string): MotorcycleModel[] {
   );
 }
 
-/**
- * Calculate acceleration enhancement based on torque-to-weight ratio
- * Higher ratio = better acceleration off the ramp
- * Returns a multiplier (1.0 = baseline, 1.1 = 10% boost)
- */
-export function calculateAccelerationFactor(motorcycle: MotorcycleModel): number {
-  // Baseline: 450cc motocross bike (Honda CRF450R)
-  const baselineTorque = 37.6;
-  const baselineWeight = 248;
-  const baselineRatio = baselineTorque / baselineWeight;
-
-  const bikeRatio = motorcycle.torque_ft_lbs / motorcycle.weight_lbs;
-  const ratio = bikeRatio / baselineRatio;
-
-  // Cap the multiplier between 0.85 and 1.35 (±15-35% variance)
-  return Math.max(0.85, Math.min(1.35, ratio));
-}
-
-/**
- * Calculate torque assistance (extra force at launch)
- * Returns additional speed bonus in mph based on torque
- */
-export function calculateTorqueBonus(motorcycle: MotorcycleModel): number {
-  // Every ft-lb of torque adds ~0.3 mph to required speed (empirical)
-  const baselineTorque = 37.6;
-  const bonus = (motorcycle.torque_ft_lbs - baselineTorque) * 0.15;
-  return Math.max(-2, Math.min(8, bonus)); // Cap between -2 and +8 mph
-}
-
-/**
- * Get acceleration characteristics as readable description
- */
-export function getAccelerationDescription(factor: number): string {
-  if (factor >= 1.25) {
-    return 'Exceptional acceleration - high torque-to-weight ratio';
-  } else if (factor >= 1.15) {
-    return 'Strong acceleration - above average power delivery';
-  } else if (factor >= 0.95) {
-    return 'Baseline acceleration - standard performance';
-  } else if (factor >= 0.85) {
-    return 'Moderate acceleration - heavier bike';
-  } else {
-    return 'Lower acceleration - weight penalty';
-  }
+export function getMotorcyclesByBrandAndYear(
+  brand: string,
+  year: number
+): MotorcycleModel[] {
+  return getMotorcyclesByBrand(brand).filter((motorcycle) => motorcycle.year === year);
 }
 
 export interface MotorcycleProfile {

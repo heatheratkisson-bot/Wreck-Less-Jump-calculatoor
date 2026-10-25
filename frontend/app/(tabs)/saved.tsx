@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   deleteCalculationLocally,
   fetchJsonWithBackend,
@@ -31,6 +31,7 @@ import {
 const { width } = Dimensions.get('window');
 
 export default function SavedScreen() {
+  const router = useRouter();
   const [calculations, setCalculations] = useState<SavedCalculation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -218,6 +219,30 @@ export default function SavedScreen() {
     }
   };
 
+  const openSavedJumpOnMap = (calc: SavedCalculation) => {
+    const location = calc.location;
+    if (
+      !location ||
+      !Number.isFinite(location.latitude) ||
+      !Number.isFinite(location.longitude) ||
+      Math.abs(location.latitude) > 90 ||
+      Math.abs(location.longitude) > 180
+    ) {
+      return;
+    }
+
+    setSelectedCalc(null);
+    router.navigate({
+      pathname: '/(tabs)/map',
+      params: {
+        focusLat: String(location.latitude),
+        focusLng: String(location.longitude),
+        focusName: calc.name,
+        focusId: calc.id,
+      },
+    });
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -299,6 +324,21 @@ export default function SavedScreen() {
             <Ionicons name="trash" size={18} color="#FF7A86" />
             <Text style={[styles.cardActionText, { color: '#FF7A86' }]}>Delete</Text>
           </TouchableOpacity>
+          {calc.location &&
+            Number.isFinite(calc.location.latitude) &&
+            Number.isFinite(calc.location.longitude) &&
+            Math.abs(calc.location.latitude) <= 90 &&
+            Math.abs(calc.location.longitude) <= 180 && (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={`View ${calc.name} on satellite map`}
+                style={styles.cardActionButton}
+                onPress={() => openSavedJumpOnMap(calc)}
+              >
+                <Ionicons name="map" size={18} color="#A6D608" />
+                <Text style={[styles.cardActionText, { color: '#A6D608' }]}>Map</Text>
+              </TouchableOpacity>
+            )}
         </View>
       </View>
     );
@@ -307,6 +347,12 @@ export default function SavedScreen() {
   const renderDetailModal = () => {
     if (!selectedCalc) return null;
     const isMetric = selectedCalc.calculation.input_data.unit_system === 'metric';
+    const hasValidMapLocation =
+      selectedCalc.location &&
+      Number.isFinite(selectedCalc.location.latitude) &&
+      Number.isFinite(selectedCalc.location.longitude) &&
+      Math.abs(selectedCalc.location.latitude) <= 90 &&
+      Math.abs(selectedCalc.location.longitude) <= 180;
 
     return (
       <Modal
@@ -380,7 +426,22 @@ export default function SavedScreen() {
                       {selectedCalc.location.address || `${selectedCalc.location.latitude.toFixed(6)}, ${selectedCalc.location.longitude.toFixed(6)}`}
                     </Text>
                   </View>
+                  {hasValidMapLocation && (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      onPress={() => openSavedJumpOnMap(selectedCalc)}
+                      style={styles.viewOnMapButton}
+                    >
+                      <Ionicons name="map" size={18} color="#000000" />
+                      <Text style={styles.viewOnMapButtonText}>View on satellite map</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
+              )}
+              {!selectedCalc.location && (
+                <Text style={styles.noLocationText}>
+                  This jump has no saved location, so it cannot be shown on the map. Save jumps with location enabled to use this option.
+                </Text>
               )}
 
               {selectedCalc.share_code && (
@@ -775,6 +836,27 @@ const styles = StyleSheet.create({
     color: '#F5FAF8',
     fontSize: 14,
     flex: 1,
+  },
+  viewOnMapButton: {
+    backgroundColor: '#A6D608',
+    borderRadius: 10,
+    padding: 14,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  viewOnMapButtonText: {
+    color: '#000000',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  noLocationText: {
+    color: '#C2D0CE',
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 16,
   },
   shareSection: {
     marginBottom: 20,

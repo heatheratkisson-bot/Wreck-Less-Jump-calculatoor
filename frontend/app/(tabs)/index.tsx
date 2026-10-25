@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Text,
   View,
@@ -19,8 +19,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import * as Speech from 'expo-speech';
 import MeasureScreen from './measure';
 import type { MeasureScreenHandle, Measurements } from './measure';
+import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
+import type { MotorcycleModel } from '@/lib/motorcycleData';
 import Svg, { Path, Circle, Line, Text as SvgText, G, Polygon } from 'react-native-svg';
 import * as Location from 'expo-location';
 import {
@@ -47,11 +51,13 @@ import {
 const { width } = Dimensions.get('window');
 
 export default function Index() {
+  const { startBeginnerGuide } = useBeginnerGuide();
   // Input states
   const [rampHeight, setRampHeight] = useState('');
   const [rampAngle, setRampAngle] = useState('');
   const [gapDistance, setGapDistance] = useState('');
   const [bikeWeight, setBikeWeight] = useState('');
+  const [selectedMotorcycle, setSelectedMotorcycle] = useState<MotorcycleModel | null>(null);
   const [riderWeight, setRiderWeight] = useState('');
   const [landingHeight, setLandingHeight] = useState('');
 
@@ -63,6 +69,19 @@ export default function Index() {
   const measureScreenRef = useRef<MeasureScreenHandle>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isPacingActive, setIsPacingActive] = useState(false);
+  const [pacingSpeed, setPacingSpeed] = useState<number | null>(null);
+  const [pacingStatus, setPacingStatus] = useState('');
+  const pacingSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const pacingRequestedRef = useRef(false);
+  const pacingScreenFocusedRef = useRef(false);
+  const lastPacingAnnouncementRef = useRef<{ status: string; timestamp: number } | null>(null);
+  const lastPacingStatusRef = useRef<string | null>(null);
+  const pacingConfigRef = useRef<{
+    requiredSpeed: number;
+    recommendedSpeed: number;
+    isMetric: boolean;
+  } | null>(null);
 
   // Save modal states
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -77,6 +96,161 @@ export default function Index() {
   const [showCallHelpModal, setShowCallHelpModal] = useState(false);
   const [showAlertRidersModal, setShowAlertRidersModal] = useState(false);
   const [isSendingAlert, setIsSendingAlert] = useState(false);
+
+  useEffect(() => {
+    pacingConfigRef.current = result
+      ? {
+          requiredSpeed: useMetric ? result.required_speed_kph : result.required_speed_mph,
+          recommendedSpeed: useMetric ? result.safety_speed_kph : result.safety_speed_mph,
+          isMetric: useMetric,
+        }
+      : null;
+  }, [result, useMetric]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      getSelectedMotorcycle()
+        .then((motorcycle) => {
+          if (!isMounted) {
+            return;
+          }
+          setSelectedMotorcycle(motorcycle);
+          const weight = useMetric ? motorcycle.weight_lbs / 2.20462 : motorcycle.weight_lbs;
+          setBikeWeight(weight.toFixed(1));
+        })
+        .catch((error: unknown) => {
+          console.error('Could not load selected bike weight:', error);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }, [useMetric])
+  );
+
+  const stopPacing = useCallback(() => {
+    pacingRequestedRef.current = false;
+    pacingSubscriptionRef.current?.remove();
+    pacingSubscriptionRef.current = null;
+    setIsPacingActive(false);
+    setPacingSpeed(null);
+    setPacingStatus('');
+    lastPacingAnnouncementRef.current = null;
+    lastPacingStatusRef.current = null;
+    void Speech.stop().catch((error: unknown) => {
+      console.error('Could not stop pacing speech:', error);
+    });
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      pacingScreenFocusedRef.current = true;
+      return () => {
+        pacingScreenFocusedRef.current = false;
+        pacingRequestedRef.current = false;
+        pacingSubscriptionRef.current?.remove();
+        pacingSubscriptionRef.current = null;
+        setIsPacingActive(false);
+        setPacingSpeed(null);
+        setPacingStatus('');
+        lastPacingAnnouncementRef.current = null;
+        lastPacingStatusRef.current = null;
+        void Speech.stop().catch((error: unknown) => {
+          console.error('Could not stop pacing speech:', error);
+        });
+      };
+    }, [])
+  );
+
+  const handlePacingLocation = useCallback((location: Location.LocationObject) => {
+    const config = pacingConfigRef.current;
+    const speedMetersPerSecond = location.coords.speed;
+    if (!config || speedMetersPerSecond === null || speedMetersPerSecond < 0) {
+      return;
+    }
+
+    const currentSpeed = config.isMetric
+      ? speedMetersPerSecond * 3.6
+      : speedMetersPerSecond * 2.236936;
+    const previousStatus = lastPacingStatusRef.current;
+    const status =
+      previousStatus === 'Below calculated speed' &&
+      currentSpeed < config.requiredSpeed + 1.5
+        ? previousStatus
+        : previousStatus === 'Above recommended estimate' &&
+            currentSpeed > config.recommendedSpeed - 1.5
+          ? previousStatus
+          : currentSpeed < config.requiredSpeed
+        ? 'Below calculated speed'
+        : currentSpeed <= config.recommendedSpeed
+          ? 'Within estimated range'
+          : 'Above recommended estimate';
+    lastPacingStatusRef.current = status;
+    setPacingSpeed(currentSpeed);
+    setPacingStatus(status);
+
+    const now = Date.now();
+    const lastAnnouncement = lastPacingAnnouncementRef.current;
+    if (lastAnnouncement?.status === status && now - lastAnnouncement.timestamp < 8000) {
+      return;
+    }
+
+    lastPacingAnnouncementRef.current = { status, timestamp: now };
+    void Speech.stop()
+      .then(() => Speech.speak(status, { language: 'en-US', rate: 0.9 }))
+      .catch((error: unknown) => {
+        console.error('Could not play pacing speech:', error);
+      });
+  }, []);
+
+  const startPacing = async () => {
+    if (!result || isPacingActive || pacingRequestedRef.current) {
+      return;
+    }
+
+    pacingRequestedRef.current = true;
+    setPacingStatus('Waiting for GPS speed…');
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!pacingRequestedRef.current || !pacingScreenFocusedRef.current) {
+        return;
+      }
+      if (permission.status !== 'granted') {
+        pacingRequestedRef.current = false;
+        setPacingStatus('');
+        Alert.alert(
+          'Location permission needed',
+          'Allow location access while using the app to hear live speed guidance.'
+        );
+        return;
+      }
+
+      const subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 1000,
+          distanceInterval: 1,
+        },
+        handlePacingLocation
+      );
+      if (!pacingRequestedRef.current || !pacingScreenFocusedRef.current) {
+        subscription.remove();
+        return;
+      }
+
+      pacingSubscriptionRef.current = subscription;
+      setIsPacingActive(true);
+    } catch (error) {
+      if (!pacingRequestedRef.current || !pacingScreenFocusedRef.current) {
+        return;
+      }
+      pacingRequestedRef.current = false;
+      console.error('Could not start live speed guidance:', error);
+      setPacingStatus('');
+      Alert.alert('Could not start speed guidance', 'Check location settings and try again.');
+    }
+  };
 
   const loadCurrentLocation = async () => {
     try {
@@ -147,6 +321,18 @@ export default function Index() {
       return false;
     }
 
+    const bikeWeightValue = parseFloat(bikeWeight);
+    const riderWeightValue = parseFloat(riderWeight);
+    if (
+      !Number.isFinite(bikeWeightValue) ||
+      bikeWeightValue <= 0 ||
+      !Number.isFinite(riderWeightValue) ||
+      riderWeightValue <= 0
+    ) {
+      Alert.alert('Invalid Weight', 'Bike weight and rider weight must be greater than 0.');
+      return false;
+    }
+
     return true;
   };
 
@@ -154,6 +340,7 @@ export default function Index() {
     if (!validateInputs()) return;
 
     setIsLoading(true);
+    stopPacing();
     setResult(null);
 
     try {
@@ -185,8 +372,8 @@ export default function Index() {
         data = calculateJumpLocally(inputData);
       }
 
-      const selectedMotorcycle = await getSelectedMotorcycle();
-      data = applyMotorcycleAdjustmentsToResult(data, selectedMotorcycle);
+      const calculationMotorcycle = await getSelectedMotorcycle();
+      data = applyMotorcycleAdjustmentsToResult(data, calculationMotorcycle);
 
       setResult(data);
       // Start animation
@@ -200,6 +387,7 @@ export default function Index() {
   };
 
   const clearForm = () => {
+    stopPacing();
     setRampHeight('');
     setRampAngle('');
     setGapDistance('');
@@ -669,8 +857,21 @@ export default function Index() {
           accessibilityLabel="Be safer, ride better, wreck less!"
           style={styles.sloganHeader}
         >
-          <Text style={styles.sloganFirstLine}>BE SAFER, RIDE BETTER</Text>
-          <Text style={styles.sloganSecondLine}>WRECK LESS!</Text>
+          <View style={styles.sloganSideSpace} />
+          <View style={styles.sloganCopy}>
+            <Text style={styles.sloganFirstLine}>BE SAFER, RIDE BETTER</Text>
+            <Text style={styles.sloganSecondLine}>WRECK LESS!</Text>
+          </View>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Instructions"
+            accessibilityHint="Replay the beginner walkthrough"
+            onPress={startBeginnerGuide}
+            style={styles.instructionsButton}
+          >
+            <Ionicons name="help-circle-outline" size={16} color="#A6D608" />
+            <Text style={styles.instructionsButtonText}>Instructions</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.inputMethodTabs}>
           <TouchableOpacity
@@ -810,8 +1011,13 @@ export default function Index() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Dirt Bike Weight ({weightUnit}) <Text style={styles.required}>*</Text></Text>
-              <TextInput
-                style={styles.input}
+                {selectedMotorcycle && (
+                  <Text style={styles.helperText}>
+                    Filled from {selectedMotorcycle.year} {selectedMotorcycle.brand} {selectedMotorcycle.model}. Change the bike in My Bike.
+                  </Text>
+                )}
+                <TextInput
+                  style={styles.input}
                 value={bikeWeight}
                 onChangeText={setBikeWeight}
                 placeholder={`e.g., ${useMetric ? '100' : '220'}`}
@@ -882,6 +1088,53 @@ export default function Index() {
                 <Text style={styles.mainResultValue}>
                   {useMetric ? result.required_speed_kph : result.required_speed_mph}
                   <Text style={styles.mainResultUnit}> {speedUnit}</Text>
+                </Text>
+              </View>
+
+              <View style={styles.pacingCard}>
+                <View style={styles.pacingHeader}>
+                  <View style={styles.pacingCopy}>
+                    <Text style={styles.pacingTitle}>Audible Pace Guidance</Text>
+                    <Text style={styles.pacingDescription}>
+                      Hear how your live GPS speed compares with this calculation.
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={isPacingActive ? 'Stop audible pacing guidance' : 'Start audible pacing guidance'}
+                    onPress={() => {
+                      if (isPacingActive) {
+                        stopPacing();
+                      } else {
+                        void startPacing();
+                      }
+                    }}
+                    style={[styles.pacingButton, isPacingActive && styles.pacingButtonActive]}
+                  >
+                    <Ionicons
+                      name={isPacingActive ? 'volume-mute' : 'volume-high'}
+                      size={18}
+                      color={isPacingActive ? '#F5FAF8' : '#000000'}
+                    />
+                    <Text style={[styles.pacingButtonText, isPacingActive && styles.pacingButtonTextActive]}>
+                      {isPacingActive ? 'Stop' : 'Start'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {isPacingActive && (
+                  <View style={styles.pacingStatusRow}>
+                    <View style={styles.pacingStatusCopy}>
+                      <Text style={styles.pacingStatusText}>
+                        {pacingStatus || 'Waiting for GPS speed…'}
+                      </Text>
+                      <Text style={styles.pacingSpeedText}>
+                        {pacingSpeed === null ? '—' : pacingSpeed.toFixed(1)} {speedUnit}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                <Text style={styles.pacingDisclaimer}>
+                  Keep the app open for live GPS updates. GPS can lag; this is only an estimate, not a safety or go/no-go signal. Ride only on a closed course with qualified supervision, and never use audio that blocks awareness of hazards.
                 </Text>
               </View>
 
@@ -1188,9 +1441,35 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sloganHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 3,
+    paddingTop: 6,
+    paddingBottom: 5,
+    paddingHorizontal: 10,
+  },
+  sloganSideSpace: {
+    width: 96,
+  },
+  sloganCopy: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  instructionsButton: {
+    width: 96,
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#49636A',
+    borderRadius: 18,
+    backgroundColor: '#14252C',
+  },
+  instructionsButtonText: {
+    color: '#F5FAF8',
+    fontSize: 11,
+    fontWeight: '700',
   },
   sloganFirstLine: {
     color: '#F5FAF8',
@@ -1356,6 +1635,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#405C65',
   },
+  helperText: {
+    color: '#9AADB0',
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 6,
+  },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
@@ -1494,6 +1779,88 @@ const styles = StyleSheet.create({
   mainResultUnit: {
     fontSize: 24,
     fontWeight: 'normal',
+  },
+  pacingCard: {
+    backgroundColor: 'rgba(29, 51, 58, 0.78)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#405C65',
+  },
+  pacingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pacingCopy: {
+    flex: 1,
+  },
+  pacingTitle: {
+    color: '#F5FAF8',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pacingDescription: {
+    color: '#C2D0CE',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  pacingButton: {
+    minWidth: 86,
+    minHeight: 42,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#A6D608',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  pacingButtonActive: {
+    backgroundColor: '#B94D5B',
+  },
+  pacingButtonText: {
+    color: '#000000',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  pacingButtonTextActive: {
+    color: '#F5FAF8',
+  },
+  pacingStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#405C65',
+  },
+  pacingStatusCopy: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  pacingStatusText: {
+    color: '#A6D608',
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+  pacingSpeedText: {
+    color: '#F5FAF8',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pacingDisclaimer: {
+    color: '#E8B86D',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 12,
   },
   safetyCard: {
     backgroundColor: 'rgba(232, 184, 109, 0.1)',
