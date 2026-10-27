@@ -1,26 +1,26 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscription } from '../_layout';
 
 const RED_BULL_THEME = {
-  accent: '#E10600',
-  accentSoft: '#FF4D3A',
-  tabBar: '#151515',
-  tabBarBorder: '#2B2B2B',
-  inactive: '#9AA0A6',
+  accent: '#FF6B35',
+  accentSoft: '#FF9A5C',
+  tabBar: '#171717',
+  tabBarBorder: '#2A2A2A',
+  inactive: '#8E8E93',
   text: '#FFFFFF',
   panel: '#1E1E1E',
 };
 
 const HONDA_THEME = {
-  accent: '#F97316',
-  accentSoft: '#FB923C',
-  tabBar: '#0F172A',
-  tabBarBorder: '#1E293B',
-  inactive: '#94A3B8',
+  accent: '#F59E0B',
+  accentSoft: '#FBBF24',
+  tabBar: '#171717',
+  tabBarBorder: '#2A2A2A',
+  inactive: '#8E8E93',
   text: '#F8FAFC',
   panel: '#111827',
 };
@@ -47,51 +47,57 @@ const routeIconMap: Record<string, string> = {
 function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
   const activeRouteName = state.routes[state.index]?.name ?? 'index';
+  const activeTheme = getThemeForRoute(activeRouteName);
 
   return (
-    <View
-      style={[
-        styles.tabRail,
-        {
-          backgroundColor: getThemeForRoute(activeRouteName).tabBar,
-          borderRightColor: getThemeForRoute(activeRouteName).tabBarBorder,
-          paddingTop: insets.top + 12,
-          paddingBottom: insets.bottom + 8,
-        },
-      ]}
-    >
-      {state.routes.map((route: any, index: number) => {
-        const isFocused = state.index === index;
-        const routeTheme = getThemeForRoute(route.name);
+    <View style={styles.tabBarContainer}>
+      <View
+        style={[
+          styles.tabBar,
+          {
+            backgroundColor: activeTheme.tabBar,
+            borderColor: activeTheme.tabBarBorder,
+            paddingBottom: insets.bottom + 12,
+          },
+        ]}
+      >
+        {state.routes.map((route: any, index: number) => {
+          const isFocused = state.index === index;
+          const routeTheme = getThemeForRoute(route.name);
 
-        return (
-          <Pressable
-            key={route.key}
-            accessibilityRole="button"
-            onPress={() => navigation.navigate(route.name)}
-            style={[
-              styles.tabButton,
-              isFocused && {
-                backgroundColor: routeTheme.accent,
-              },
-            ]}
-          >
-            <Ionicons
-              name={routeIconMap[route.name] ?? 'ellipse'}
-              size={20}
-              color={isFocused ? '#fff' : routeTheme.inactive}
-            />
-            <Text
+          return (
+            <Pressable
+              key={route.key}
+              accessibilityRole="button"
+              onPress={() => navigation.navigate(route.name)}
               style={[
-                styles.tabLabel,
-                { color: isFocused ? '#fff' : routeTheme.inactive },
+                styles.tabButton,
+                isFocused && {
+                  backgroundColor: routeTheme.accent,
+                  shadowColor: routeTheme.accent,
+                  shadowOpacity: 0.28,
+                  shadowRadius: 14,
+                  shadowOffset: { width: 0, height: 6 },
+                },
               ]}
             >
-              {routeLabelMap[route.name] ?? route.name}
-            </Text>
-          </Pressable>
-        );
-      })}
+              <Ionicons
+                name={routeIconMap[route.name] ?? 'ellipse'}
+                size={20}
+                color={isFocused ? '#fff' : routeTheme.inactive}
+              />
+              <Text
+                style={[
+                  styles.tabLabel,
+                  { color: isFocused ? '#fff' : routeTheme.inactive },
+                ]}
+              >
+                {routeLabelMap[route.name] ?? route.name}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -100,8 +106,7 @@ export default function TabLayout() {
   const { isTrial, trialInfo } = useSubscription();
 
   return (
-    <View style={{ flex: 1, flexDirection: 'row' }}>
-      {/* Trial Banner */}
+    <View style={styles.screenWrapper}>
       {isTrial && trialInfo && (
         <View style={styles.trialBanner}>
           <Ionicons name="time" size={16} color="#fff" />
@@ -157,6 +162,10 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: '#121212',
+  },
   trialBanner: {
     position: 'absolute',
     top: 0,
@@ -169,30 +178,50 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     gap: 8,
-    zIndex: 10,
+    zIndex: 20,
   },
   trialBannerText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
-  tabRail: {
-    width: 104,
-    borderRightWidth: 1,
-    paddingHorizontal: 8,
-    justifyContent: 'center',
-    gap: 8,
+  tabBarContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 14,
+    paddingBottom: 6,
+    zIndex: 10,
   },
-  tabButton: {
+  tabBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingTop: 12,
     paddingHorizontal: 10,
-    paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 28,
+    borderWidth: 1,
+    minHeight: 78,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 12,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderRadius: 18,
+    minHeight: 56,
   },
   tabLabel: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
