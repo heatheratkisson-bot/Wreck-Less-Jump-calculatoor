@@ -129,6 +129,7 @@ export default function RootLayout() {
       setSubscribed 
     }}>
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="paywall" />
         <Stack.Screen name="payment-success" />

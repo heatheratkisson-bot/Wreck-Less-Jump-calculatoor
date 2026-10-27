@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SKILL_CATEGORIES, SKILL_SOURCES } from '@/lib/rideBetterSkills';
 import type { SkillCategory } from '@/lib/rideBetterSkills';
+import { calculateGearSpeeds } from '@/lib/gearCalculator';
 import SkillHeroPhoto from '@/components/SkillHeroPhoto';
 
 const RIDING_LOCATION_KEY = 'wreckless_ride_better_location_v1';
@@ -23,7 +24,7 @@ const CHP_MOTORCYCLE_SAFETY_URL =
   'https://www.chp.ca.gov/Programs-Services/Programs/California-Motorcyclist-Safety';
 const NHTSA_MOTORCYCLE_SAFETY_URL = 'https://www.nhtsa.gov/road-safety/motorcycles';
 
-type RideSection = 'safety' | 'skills';
+type RideSection = 'safety' | 'skills' | 'gears';
 
 const SAFETY_GUIDES = [
   {
@@ -73,6 +74,37 @@ export default function RideBetterScreen() {
   const [section, setSection] = useState<RideSection>('safety');
   const [ridingLocation, setRidingLocation] = useState('Kern County, California');
   const [locationDraft, setLocationDraft] = useState('Kern County, California');
+  const [engineRpm, setEngineRpm] = useState('8000');
+  const [frontSprocketTeeth, setFrontSprocketTeeth] = useState('13');
+  const [rearSprocketTeeth, setRearSprocketTeeth] = useState('50');
+  const [primaryReduction, setPrimaryReduction] = useState('');
+  const [gearRatios, setGearRatios] = useState(['', '', '', '', '']);
+  const [wheelCircumference, setWheelCircumference] = useState('');
+
+  const gearInputValues = [
+    engineRpm,
+    frontSprocketTeeth,
+    rearSprocketTeeth,
+    primaryReduction,
+    wheelCircumference,
+    ...gearRatios,
+  ];
+  const parsedGearValues = gearInputValues.map((value) => Number(value));
+  const canCalculateGearSpeeds =
+    gearInputValues.every((value) => value.trim() !== '') &&
+    parsedGearValues.every((value) => Number.isFinite(value) && value > 0) &&
+    Number.isInteger(Number(frontSprocketTeeth)) &&
+    Number.isInteger(Number(rearSprocketTeeth));
+  const gearResults = canCalculateGearSpeeds
+    ? calculateGearSpeeds({
+        engineRpm: Number(engineRpm),
+        frontSprocketTeeth: Number(frontSprocketTeeth),
+        rearSprocketTeeth: Number(rearSprocketTeeth),
+        primaryReduction: Number(primaryReduction),
+        gearRatios: gearRatios.map(Number),
+        rearWheelCircumferenceInches: Number(wheelCircumference),
+      })
+    : [];
 
   useEffect(() => {
     let isMounted = true;
@@ -160,6 +192,15 @@ export default function RideBetterScreen() {
           >
             <Ionicons name="school" size={19} color={section === 'skills' ? '#000000' : '#C2D0CE'} />
             <Text style={[styles.sectionTabText, section === 'skills' && styles.sectionTabTextActive]}>Skills</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: section === 'gears' }}
+            onPress={() => setSection('gears')}
+            style={[styles.sectionTab, section === 'gears' && styles.sectionTabActive]}
+          >
+            <Ionicons name="cog" size={19} color={section === 'gears' ? '#000000' : '#C2D0CE'} />
+            <Text style={[styles.sectionTabText, section === 'gears' && styles.sectionTabTextActive]}>Gears</Text>
           </Pressable>
         </View>
 
@@ -267,7 +308,7 @@ export default function RideBetterScreen() {
           <Ionicons name="open-outline" size={18} color="#C2D0CE" />
         </Pressable>
           </>
-        ) : (
+        ) : section === 'skills' ? (
           <>
         <View style={styles.safetyNote}>
           <Ionicons name="information-circle" size={22} color="#E8B86D" />
@@ -308,6 +349,76 @@ export default function RideBetterScreen() {
           ))}
         </View>
           </>
+        ) : (
+          <View style={styles.gearCalculatorCard}>
+            <View style={styles.gearCalculatorHeading}>
+              <Ionicons name="speedometer" size={22} color="#A6D608" />
+              <View style={styles.gearCalculatorHeadingCopy}>
+                <Text style={styles.sectionTitle}>Sprocket & Gear Calculator</Text>
+                <Text style={styles.gearCalculatorDescription}>
+                  Enter your bike’s service-manual ratios and measured rear-wheel circumference for theoretical speed at the selected engine RPM.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.gearInputGrid}>
+              <GearInput label="Engine RPM" value={engineRpm} onChangeText={setEngineRpm} />
+              <GearInput label="Front sprocket (T)" value={frontSprocketTeeth} onChangeText={setFrontSprocketTeeth} />
+              <GearInput label="Rear sprocket (T)" value={rearSprocketTeeth} onChangeText={setRearSprocketTeeth} />
+              <GearInput label="Primary reduction" value={primaryReduction} onChangeText={setPrimaryReduction} placeholder="e.g. 3.35" />
+              <GearInput label="Rear wheel circumference (in)" value={wheelCircumference} onChangeText={setWheelCircumference} placeholder="Measure loaded tire" />
+            </View>
+
+            <Text style={styles.gearRatioTitle}>Transmission ratios (from service manual)</Text>
+            <View style={styles.gearRatioGrid}>
+              {gearRatios.map((ratio, index) => (
+                <GearInput
+                  key={`gear-ratio-${index + 1}`}
+                  label={`${index + 1}${index === 0 ? 'st' : index === 1 ? 'nd' : index === 2 ? 'rd' : 'th'} gear`}
+                  value={ratio}
+                  onChangeText={(value) =>
+                    setGearRatios((current) =>
+                      current.map((currentRatio, ratioIndex) =>
+                        ratioIndex === index ? value : currentRatio
+                      )
+                    )
+                  }
+                  placeholder="e.g. 2.14"
+                  compact
+                />
+              ))}
+            </View>
+
+            {gearResults.length > 0 ? (
+              <View style={styles.gearResultsCard}>
+                <View style={styles.gearResultsHeader}>
+                  <Text style={styles.gearResultsTitle}>Theoretical speed at {engineRpm} RPM</Text>
+                  <Text style={styles.gearResultsTeeth}>
+                    {frontSprocketTeeth}T / {rearSprocketTeeth}T
+                  </Text>
+                </View>
+                {gearResults.map((item) => (
+                  <View key={item.gear} style={styles.gearResultRow}>
+                    <Text style={styles.gearResultGear}>{item.gear}{item.gear === 1 ? 'st' : item.gear === 2 ? 'nd' : item.gear === 3 ? 'rd' : 'th'}</Text>
+                    <Text style={styles.gearResultSpeed}>{item.speedMph.toFixed(1)} mph</Text>
+                    <Text style={styles.gearResultMetric}>{item.speedKph.toFixed(1)} km/h</Text>
+                    <Text style={styles.gearResultRatio}>{item.overallReduction.toFixed(2)}:1</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.gearResultsEmpty}>
+                Fill in all drivetrain values to see the speed in each gear.
+              </Text>
+            )}
+
+            <View style={styles.gearCaveat}>
+              <Ionicons name="information-circle" size={18} color="#E8B86D" />
+              <Text style={styles.gearCaveatText}>
+                This is a theoretical wheel-speed conversion, not a recommended jump-approach gear or speed. Real speed varies with tire growth, clutch slip, load, and conditions. Confirm specifications in your bike’s service manual and ride with qualified supervision.
+              </Text>
+            </View>
+          </View>
         )}
       </ScrollView>
 
@@ -399,6 +510,35 @@ export default function RideBetterScreen() {
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+function GearInput({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  compact?: boolean;
+}) {
+  return (
+    <View style={[styles.gearInput, compact && styles.gearInputCompact]}>
+      <Text style={styles.gearInputLabel}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        keyboardType="decimal-pad"
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#9AADB0"
+        style={styles.gearInputField}
+      />
+    </View>
   );
 }
 
@@ -867,5 +1007,149 @@ const styles = StyleSheet.create({
     color: '#E1EBE9',
     fontSize: 13,
     lineHeight: 19,
+  },
+  gearCalculatorCard: {
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#35515A',
+    borderRadius: 16,
+    backgroundColor: '#1B3038',
+  },
+  gearCalculatorHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 16,
+  },
+  gearCalculatorHeadingCopy: {
+    flex: 1,
+  },
+  gearCalculatorDescription: {
+    marginTop: 6,
+    color: '#C2D0CE',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  gearInputGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  gearInput: {
+    width: '48%',
+    minWidth: 130,
+    flexGrow: 1,
+  },
+  gearInputCompact: {
+    minWidth: 82,
+  },
+  gearInputLabel: {
+    marginBottom: 5,
+    color: '#C2D0CE',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  gearInputField: {
+    minHeight: 44,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#526E76',
+    borderRadius: 9,
+    backgroundColor: '#081116',
+    color: '#F5FAF8',
+    fontSize: 15,
+  },
+  gearRatioTitle: {
+    marginTop: 18,
+    marginBottom: 9,
+    color: '#F5FAF8',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  gearRatioGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  gearResultsCard: {
+    padding: 12,
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: '#405C65',
+    borderRadius: 12,
+    backgroundColor: '#081116',
+  },
+  gearResultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  gearResultsTitle: {
+    flex: 1,
+    color: '#F5FAF8',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  gearResultsTeeth: {
+    color: '#A6D608',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  gearResultRow: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#28434B',
+  },
+  gearResultGear: {
+    flex: 0.6,
+    color: '#C2D0CE',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  gearResultSpeed: {
+    flex: 1.1,
+    color: '#D4F66E',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  gearResultMetric: {
+    flex: 1,
+    color: '#C2D0CE',
+    fontSize: 11,
+    textAlign: 'right',
+  },
+  gearResultRatio: {
+    flex: 0.8,
+    color: '#9AADB0',
+    fontSize: 10,
+    textAlign: 'right',
+  },
+  gearResultsEmpty: {
+    marginTop: 15,
+    color: '#9AADB0',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  gearCaveat: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 11,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#80653B',
+    borderRadius: 11,
+    backgroundColor: '#14262D',
+  },
+  gearCaveatText: {
+    flex: 1,
+    color: '#F2D39A',
+    fontSize: 11,
+    lineHeight: 16,
   },
 });

@@ -108,6 +108,7 @@ const LOCAL_SAVED_CALCULATIONS_KEY = 'wreckless_saved_calculations_v1';
 const DEVICE_ID_STORAGE_KEY = 'device_id';
 const MOTORCYCLE_PROFILE_STORAGE_KEY = 'wreckless_selected_motorcycle_v1';
 const RIDER_PROFILE_DATA_KEY = 'wreckless_rider_profiles_v1';
+const RIDER_WEIGHT_STORAGE_KEY = 'wreckless_rider_weight_lbs_v1';
 // Emergency-specific identifier and secret. These are intentionally never sent or stored
 // alongside the general device_id above, and never returned by any backend endpoint, so a
 // share-code holder who learns device_id (via GET /api/shared/{share_code}) cannot use it
@@ -282,6 +283,24 @@ export async function saveSelectedMotorcycle(motorcycle: MotorcycleModel | null)
   }
 
   await setStoredJson(MOTORCYCLE_PROFILE_STORAGE_KEY, motorcycle);
+}
+
+export async function getSavedRiderWeight(): Promise<number | null> {
+  const savedWeight = await getStoredJson<unknown>(RIDER_WEIGHT_STORAGE_KEY, null);
+  if (savedWeight === null) {
+    return null;
+  }
+  if (typeof savedWeight !== 'number' || !Number.isFinite(savedWeight) || savedWeight <= 0) {
+    throw new Error('Saved rider weight has an invalid format.');
+  }
+  return savedWeight;
+}
+
+export async function saveRiderWeight(weightLbs: number): Promise<void> {
+  if (!Number.isFinite(weightLbs) || weightLbs <= 0) {
+    throw new Error('Rider weight must be a positive number.');
+  }
+  await setStoredJson(RIDER_WEIGHT_STORAGE_KEY, weightLbs);
 }
 
 function createBikeProfileId(): string {

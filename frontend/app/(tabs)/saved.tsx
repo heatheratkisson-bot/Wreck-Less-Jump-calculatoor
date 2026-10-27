@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   Text,
   View,
@@ -25,7 +25,9 @@ import {
   isBackendConfigured,
   listSavedCalculationsLocally,
   lookupSharedCalculationLocally,
+  getRiderProfileData,
   SavedCalculation,
+  RiderProfileData,
 } from '@/lib/appSupport';
 
 const { width } = Dimensions.get('window');
@@ -36,10 +38,42 @@ export default function SavedScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lookupCode, setLookupCode] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
   const [isLookingUp, setIsLookingUp] = useState(false);
   const [showLookupModal, setShowLookupModal] = useState(false);
   const [selectedCalc, setSelectedCalc] = useState<SavedCalculation | null>(null);
+  const [riderProfileData, setRiderProfileData] = useState<RiderProfileData | null>(null);
   const isMountedRef = useRef(true);
+
+  const activeProfile =
+    riderProfileData?.profiles.find((profile) => profile.id === riderProfileData.activeProfileId) ?? null;
+  const activeBikeJumps = useMemo(
+    () =>
+      riderProfileData?.jumps.filter((jump) => jump.profileId === activeProfile?.id) ?? [],
+    [activeProfile?.id, riderProfileData?.jumps]
+  );
+  const jumpStats = useMemo(() => {
+    const completed = activeBikeJumps.filter((jump) => jump.outcome === 'completed');
+    return {
+      completed: completed.length,
+      wrecks: activeBikeJumps.filter((jump) => jump.outcome === 'wreck').length,
+      topSpeed: completed.reduce((top, jump) => Math.max(top, jump.speedMph), 0),
+      highestJump: completed.reduce((top, jump) => Math.max(top, jump.jumpHeightFeet), 0),
+      farthestGap: completed.reduce((top, jump) => Math.max(top, jump.gapFeet), 0),
+    };
+  }, [activeBikeJumps]);
+
+  const fetchRiderData = useCallback(async () => {
+    try {
+      const data = await getRiderProfileData();
+      if (isMountedRef.current) {
+        setRiderProfileData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching rider jump stats:', error);
+    }
+  }, []);
 
   const fetchCalculations = useCallback(async () => {
     try {
@@ -77,18 +111,42 @@ export default function SavedScreen() {
     isMountedRef.current = true;
     const task = InteractionManager.runAfterInteractions(() => {
       void fetchCalculations();
+      void fetchRiderData();
     });
 
     return () => {
       task.cancel();
       isMountedRef.current = false;
     };
-  }, [fetchCalculations]));
+  }, [fetchCalculations, fetchRiderData]));
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     void fetchCalculations();
-  }, [fetchCalculations]);
+    void fetchRiderData();
+  }, [fetchCalculations, fetchRiderData]);
+
+  const filteredCalculations = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return calculations;
+    }
+    return calculations.filter((calc) => {
+      const { input_data: input } = calc.calculation;
+      return [
+        calc.name,
+        calc.description ?? '',
+        calc.share_code ?? '',
+        String(input.gap_distance),
+        String(input.ramp_angle),
+        String(calc.calculation.required_speed_mph),
+        String(calc.calculation.required_speed_kph),
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [calculations, searchQuery]);
 
   const handleDelete = async (id: string, name: string) => {
     Alert.alert(
@@ -276,13 +334,13 @@ export default function SavedScreen() {
 
         <View style={styles.cardStats}>
           <View style={styles.statItem}>
-            <Ionicons name="speedometer" size={16} color="#8BD6A7" />
+            <Ionicons name="speedometer" size={16} color="#A6D608" />
             <Text style={styles.statText}>
               {isMetric ? calc.calculation.required_speed_kph : calc.calculation.required_speed_mph} {isMetric ? 'km/h' : 'mph'}
             </Text>
           </View>
           <View style={styles.statItem}>
-            <Ionicons name="resize" size={16} color="#82B6FF" />
+            <Ionicons name="resize" size={16} color="#D7DEE5" />
             <Text style={styles.statText}>
               {calc.calculation.input_data.gap_distance} {isMetric ? 'm' : 'ft'}
             </Text>
@@ -307,15 +365,15 @@ export default function SavedScreen() {
             style={styles.cardActionButton}
             onPress={() => setSelectedCalc(calc)}
           >
-            <Ionicons name="eye" size={18} color="#82B6FF" />
+            <Ionicons name="eye" size={18} color="#D7DEE5" />
             <Text style={styles.cardActionText}>View</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.cardActionButton}
             onPress={() => handleShare(calc)}
           >
-            <Ionicons name="share-social" size={18} color="#8BD6A7" />
-            <Text style={[styles.cardActionText, { color: '#8BD6A7' }]}>Share</Text>
+            <Ionicons name="share-social" size={18} color="#2E9C61" />
+            <Text style={[styles.cardActionText, { color: '#2E9C61' }]}>Share</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.cardActionButton}
@@ -335,8 +393,8 @@ export default function SavedScreen() {
                 style={styles.cardActionButton}
                 onPress={() => openSavedJumpOnMap(calc)}
               >
-                <Ionicons name="map" size={18} color="#A6D608" />
-                <Text style={[styles.cardActionText, { color: '#A6D608' }]}>Map</Text>
+                <Ionicons name="map" size={18} color="#D7DEE5" />
+                <Text style={styles.cardActionText}>Map</Text>
               </TouchableOpacity>
             )}
         </View>
@@ -366,7 +424,7 @@ export default function SavedScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{selectedCalc.name}</Text>
               <TouchableOpacity onPress={() => setSelectedCalc(null)}>
-                <Ionicons name="close" size={24} color="#F5FAF8" />
+                <Ionicons name="close" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
 
@@ -466,18 +524,108 @@ export default function SavedScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Saved Calculations</Text>
-        <TouchableOpacity
-          style={styles.lookupButton}
-          onPress={() => setShowLookupModal(true)}
-        >
-          <Ionicons name="search" size={20} color="#A6D608" />
-          <Text style={styles.lookupButtonText}>Lookup</Text>
-        </TouchableOpacity>
+        <View style={styles.headerTopRow}>
+          <View>
+            <Text style={styles.headerEyebrow}>HRC // RIDE LOG</Text>
+            <Text style={styles.title}>Saved Calculations</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.lookupButton, showSearch && styles.lookupButtonActive]}
+              onPress={() => {
+                setShowSearch((visible) => !visible);
+                setSearchQuery('');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={showSearch ? 'Close jump search' : 'Search saved calculations'}
+            >
+              <Ionicons name={showSearch ? 'close' : 'search'} size={19} color="#07111E" />
+              <Text style={styles.lookupButtonText}>Lookup</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.codeLookupButton}
+              onPress={() => setShowLookupModal(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Look up a shared calculation by code"
+            >
+              <Ionicons name="qr-code-outline" size={20} color="#D7DEE5" />
+            </TouchableOpacity>
+          </View>
+        </View>
+        {showSearch && (
+          <View style={styles.searchField}>
+            <Ionicons name="search" size={18} color="#A6D608" />
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Filter saved jump math"
+              placeholderTextColor="#7E8995"
+              autoFocus
+              returnKeyType="search"
+              accessibilityLabel="Filter saved calculations"
+            />
+            {!!searchQuery && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityLabel="Clear search">
+                <Ionicons name="close-circle" size={18} color="#7E8995" />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
+      {activeProfile && (
+        <View style={styles.statsPanel}>
+          <View style={styles.statsHeading}>
+            <View>
+              <Text style={styles.statsEyebrow}>ACTIVE BIKE // PERFORMANCE</Text>
+              <Text style={styles.statsTitle}>{activeProfile.motorcycle.brand} {activeProfile.motorcycle.model}</Text>
+            </View>
+            <Ionicons name="podium-outline" size={21} color="#A6D608" />
+          </View>
+          <View style={styles.metricsRow}>
+            <View style={styles.metricCard}>
+              <View style={styles.metricLabelRow}>
+                <Ionicons name="flash" size={14} color="#A6D608" />
+                <Text style={styles.metricLabel}>TOP SPEED</Text>
+              </View>
+              <Text style={styles.metricValue}>{jumpStats.topSpeed ? jumpStats.topSpeed.toFixed(1) : '—'}<Text style={styles.metricUnit}> mph</Text></Text>
+            </View>
+            <View style={styles.metricCard}>
+              <View style={styles.metricLabelRow}>
+                <Ionicons name="trending-up" size={14} color="#A6D608" />
+                <Text style={styles.metricLabel}>HIGHEST JUMP</Text>
+              </View>
+              <Text style={styles.metricValue}>{jumpStats.highestJump ? jumpStats.highestJump.toFixed(1) : '—'}<Text style={styles.metricUnit}> ft</Text></Text>
+            </View>
+            <View style={styles.metricCard}>
+              <View style={styles.metricLabelRow}>
+                <Ionicons name="resize" size={14} color="#A6D608" />
+                <Text style={styles.metricLabel}>FARTHEST GAP</Text>
+              </View>
+              <Text style={styles.metricValue}>{jumpStats.farthestGap ? jumpStats.farthestGap.toFixed(1) : '—'}<Text style={styles.metricUnit}> ft</Text></Text>
+            </View>
+          </View>
+          <View style={styles.outcomesRow}>
+            <View style={[styles.outcomeMetric, styles.completedMetric]}>
+              <Ionicons name="checkmark-circle" size={17} color="#2E9C61" />
+              <Text style={styles.outcomeValue}>{jumpStats.completed}</Text>
+              <Text style={styles.outcomeLabel}>COMPLETED</Text>
+            </View>
+            <View style={[styles.outcomeMetric, styles.wreckMetric]}>
+              <Ionicons name="warning" size={17} color="#E02020" />
+              <Text style={styles.outcomeValue}>{jumpStats.wrecks}</Text>
+              <Text style={styles.outcomeLabel}>WRECKS</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      <View style={styles.listHeading}>
+        <Text style={styles.listTitle}>Jump calculations</Text>
+        <Text style={styles.listCount}>{calculations.length} SAVED</Text>
+      </View>
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#A6D608" />
@@ -485,11 +633,18 @@ export default function SavedScreen() {
         </View>
       ) : calculations.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="bookmark-outline" size={64} color="#52666C" />
-          <Text style={styles.emptyText}>No saved calculations</Text>
+          <View style={styles.emptyIconFrame}>
+            <Ionicons name="bookmark-outline" size={36} color="#A6D608" />
+          </View>
           <Text style={styles.emptySubtext}>
-            Calculate a jump and save it to see it here
+            No saved calculations — Calculate a jump and save it to see it here
           </Text>
+        </View>
+      ) : filteredCalculations.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="search-outline" size={38} color="#7E8995" />
+          <Text style={styles.emptyText}>No matching calculations</Text>
+          <Text style={styles.emptySubtext}>Try a different name, distance, angle, or speed.</Text>
         </View>
       ) : (
         <ScrollView
@@ -503,9 +658,26 @@ export default function SavedScreen() {
             />
           }
         >
-          {calculations.map(renderCalculationCard)}
+          {filteredCalculations.map(renderCalculationCard)}
         </ScrollView>
       )}
+      <View style={styles.actionFooter}>
+        <TouchableOpacity
+          style={styles.logJumpButton}
+          onPress={() =>
+            router.navigate({
+              pathname: '/(tabs)/profile',
+              params: { openJumpLog: 'true' },
+            })
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Log a jump for the active bike"
+        >
+          <Ionicons name="add-circle-outline" size={21} color="#07111E" />
+          <Text style={styles.logJumpButtonText}>Log a Jump for This Bike</Text>
+          <Ionicons name="arrow-forward" size={18} color="#07111E" />
+        </TouchableOpacity>
+      </View>
 
       {/* Lookup Modal */}
       <Modal
@@ -540,10 +712,10 @@ export default function SavedScreen() {
                 disabled={isLookingUp}
               >
                 {isLookingUp ? (
-                  <ActivityIndicator color="#000000" />
+                  <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <>
-                    <Ionicons name="search" size={20} color="#000000" />
+                    <Ionicons name="search" size={20} color="#07111E" />
                     <Text style={styles.lookupSubmitText}>Find Calculation</Text>
                   </>
                 )}
@@ -562,34 +734,239 @@ export default function SavedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#081116',
+    backgroundColor: '#15191E',
   },
   header: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 13,
+    backgroundColor: '#1C2229',
+    borderBottomWidth: 2,
+    borderBottomColor: '#A6D608',
+  },
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#28434B',
+  },
+  headerEyebrow: {
+    color: '#A6D608',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginBottom: 3,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#F5FAF8',
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   lookupButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#28434B',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: '#A6D608',
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    borderRadius: 5,
+    borderBottomWidth: 2,
+    borderBottomColor: '#55741B',
+  },
+  lookupButtonActive: {
+    backgroundColor: '#303841',
+    borderBottomColor: '#66717C',
   },
   lookupButtonText: {
+    color: '#07111E',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  codeLookupButton: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 5,
+    backgroundColor: '#303841',
+    borderWidth: 1,
+    borderColor: '#505A64',
+  },
+  searchField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    height: 44,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    backgroundColor: '#101419',
+    borderWidth: 1,
+    borderColor: '#A6D608',
+    borderRadius: 5,
+  },
+  searchInput: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 14,
+    paddingVertical: 0,
+  },
+  statsPanel: {
+    marginHorizontal: 16,
+    marginTop: 13,
+    padding: 12,
+    backgroundColor: '#20262D',
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#424A53',
+    borderTopColor: '#858D94',
+  },
+  statsHeading: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 9,
+    marginBottom: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3A424B',
+  },
+  statsEyebrow: {
     color: '#A6D608',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  statsTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  metricCard: {
+    flex: 1,
+    minWidth: 0,
+    padding: 8,
+    backgroundColor: '#171C22',
+    borderRadius: 4,
+    borderLeftWidth: 2,
+    borderLeftColor: '#A6D608',
+  },
+  metricLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginBottom: 5,
+  },
+  metricLabel: {
+    flexShrink: 1,
+    color: '#AEB6BE',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  metricValue: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  metricUnit: {
+    color: '#AEB6BE',
+    fontSize: 9,
     fontWeight: '600',
+  },
+  outcomesRow: {
+    flexDirection: 'row',
+    gap: 7,
+    marginTop: 7,
+  },
+  outcomeMetric: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+    backgroundColor: '#171C22',
+    borderRadius: 4,
+  },
+  completedMetric: {
+    borderLeftWidth: 2,
+    borderLeftColor: '#2E9C61',
+  },
+  wreckMetric: {
+    borderLeftWidth: 2,
+    borderLeftColor: '#E02020',
+  },
+  outcomeValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  outcomeLabel: {
+    color: '#AEB6BE',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  listHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 15,
+    marginHorizontal: 18,
+    marginBottom: 7,
+    paddingBottom: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3B444D',
+    borderLeftWidth: 3,
+    borderLeftColor: '#A6D608',
+    paddingLeft: 9,
+  },
+  listTitle: {
+    color: '#F4F6F8',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  listCount: {
+    color: '#9BA5AF',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  actionFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 9,
+    paddingBottom: 10,
+    backgroundColor: '#1C2229',
+    borderTopWidth: 1,
+    borderTopColor: '#3B444D',
+  },
+  logJumpButton: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    paddingHorizontal: 14,
+    backgroundColor: '#A6D608',
+    borderRadius: 5,
+    borderBottomWidth: 3,
+    borderBottomColor: '#55741B',
+  },
+  logJumpButtonText: {
+    color: '#07111E',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   loadingContainer: {
     flex: 1,
@@ -597,39 +974,57 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: '#C2D0CE',
+    color: '#B8C0C8',
     marginTop: 12,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    paddingHorizontal: 36,
+    paddingVertical: 28,
+  },
+  emptyIconFrame: {
+    width: 68,
+    height: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 7,
+    backgroundColor: '#252B32',
+    borderWidth: 1,
+    borderColor: '#4C555F',
+    borderRadius: 5,
   },
   emptyText: {
-    color: '#C2D0CE',
-    fontSize: 18,
-    marginTop: 16,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 17,
+    marginTop: 9,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   emptySubtext: {
-    color: '#9AADB0',
-    fontSize: 14,
+    color: '#AEB6BE',
+    fontSize: 13,
     marginTop: 8,
     textAlign: 'center',
+    lineHeight: 19,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 14,
   },
   card: {
-    backgroundColor: '#1B3038',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: '#20262D',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#424A53',
+    borderTopColor: '#858D94',
+    padding: 14,
+    marginBottom: 11,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -643,8 +1038,8 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#F5FAF8',
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
   sharedBadge: {
     flexDirection: 'row',
@@ -663,11 +1058,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cardDate: {
-    color: '#C2D0CE',
+    color: '#AEB6BE',
     fontSize: 12,
   },
   cardDescription: {
-    color: '#CED9D6',
+    color: '#B8C0C8',
     fontSize: 14,
     marginBottom: 12,
   },
@@ -682,7 +1077,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statText: {
-    color: '#F5FAF8',
+    color: '#F4F6F8',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -693,14 +1088,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   locationText: {
-    color: '#C2D0CE',
+    color: '#B8C0C8',
     fontSize: 12,
     flex: 1,
   },
   cardActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#405C65',
+    borderTopColor: '#48515B',
     paddingTop: 12,
     marginTop: 4,
   },
@@ -713,21 +1108,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   cardActionText: {
-    color: '#82B6FF',
+    color: '#D7DEE5',
     fontSize: 14,
     fontWeight: '600',
   },
   // Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(3, 12, 16, 0.84)',
+    backgroundColor: 'rgba(5, 8, 12, 0.86)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1B3038',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: '#20262D',
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
     maxHeight: '85%',
+    borderTopWidth: 2,
+    borderTopColor: '#A6D608',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -735,38 +1132,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#405C65',
+    borderBottomColor: '#48515B',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#F5FAF8',
+    color: '#FFFFFF',
   },
   modalBody: {
     padding: 20,
   },
   modalDescription: {
-    color: '#CED9D6',
+    color: '#B8C0C8',
     fontSize: 14,
     marginBottom: 20,
     lineHeight: 20,
   },
   resultCard: {
-    backgroundColor: '#28434B',
-    borderRadius: 12,
+    backgroundColor: '#171C22',
+    borderRadius: 5,
     padding: 20,
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 2,
-    borderColor: '#8BD6A7',
+    borderColor: '#A6D608',
   },
   resultLabel: {
-    color: '#C2D0CE',
+    color: '#AEB6BE',
     fontSize: 14,
     marginBottom: 8,
   },
   resultValue: {
-    color: '#8BD6A7',
+    color: '#FFFFFF',
     fontSize: 36,
     fontWeight: 'bold',
   },
@@ -775,26 +1172,26 @@ const styles = StyleSheet.create({
     fontWeight: 'normal',
   },
   safetyCard: {
-    backgroundColor: 'rgba(232, 184, 109, 0.1)',
-    borderRadius: 12,
+    backgroundColor: '#29251F',
+    borderRadius: 5,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(232, 184, 109, 0.3)',
+    borderColor: '#746244',
   },
   safetyLabel: {
-    color: '#E8B86D',
+    color: '#E6C98F',
     fontSize: 12,
   },
   safetyValue: {
-    color: '#E8B86D',
+    color: '#E6C98F',
     fontSize: 20,
     fontWeight: 'bold',
   },
   detailsTitle: {
-    color: '#F5FAF8',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
@@ -806,18 +1203,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   detailItem: {
-    backgroundColor: '#28434B',
-    borderRadius: 10,
+    backgroundColor: '#171C22',
+    borderRadius: 5,
     padding: 12,
     width: (width - 64) / 2,
   },
   detailLabel: {
-    color: '#C2D0CE',
+    color: '#AEB6BE',
     fontSize: 12,
     marginBottom: 4,
   },
   detailValue: {
-    color: '#F5FAF8',
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -828,18 +1225,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#28434B',
-    borderRadius: 10,
+    backgroundColor: '#171C22',
+    borderRadius: 5,
     padding: 12,
   },
   locationDetailText: {
-    color: '#F5FAF8',
+    color: '#FFFFFF',
     fontSize: 14,
     flex: 1,
   },
   viewOnMapButton: {
     backgroundColor: '#A6D608',
-    borderRadius: 10,
+    borderRadius: 5,
     padding: 14,
     marginTop: 12,
     flexDirection: 'row',
@@ -848,12 +1245,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   viewOnMapButtonText: {
-    color: '#000000',
+    color: '#07111E',
     fontSize: 15,
     fontWeight: '700',
   },
   noLocationText: {
-    color: '#C2D0CE',
+    color: '#AEB6BE',
     fontSize: 13,
     lineHeight: 19,
     marginBottom: 16,
@@ -865,36 +1262,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#28434B',
-    borderRadius: 10,
+    backgroundColor: '#171C22',
+    borderRadius: 5,
     padding: 16,
   },
   shareCodeText: {
-    color: '#A6D608',
+    color: '#FFFFFF',
     fontSize: 24,
     fontWeight: 'bold',
     letterSpacing: 2,
   },
   lookupLabel: {
-    color: '#CED9D6',
+    color: '#B8C0C8',
     fontSize: 14,
     marginBottom: 12,
   },
   lookupInput: {
-    backgroundColor: '#28434B',
-    borderRadius: 10,
+    backgroundColor: '#171C22',
+    borderRadius: 5,
     padding: 16,
     fontSize: 18,
-    color: '#F5FAF8',
+    color: '#FFFFFF',
     textAlign: 'center',
     letterSpacing: 2,
     borderWidth: 1,
-    borderColor: '#405C65',
+    borderColor: '#A6D608',
     marginBottom: 16,
   },
   lookupSubmitButton: {
     backgroundColor: '#A6D608',
-    borderRadius: 12,
+    borderRadius: 5,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -902,7 +1299,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   lookupSubmitText: {
-    color: '#000000',
+    color: '#07111E',
     fontSize: 16,
     fontWeight: '600',
   },

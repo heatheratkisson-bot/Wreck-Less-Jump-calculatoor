@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path, Polygon } from 'react-native-svg';
 import { useSubscription } from '../_layout';
 import { BeginnerGuideProvider } from '@/lib/BeginnerGuideContext';
 
@@ -13,37 +14,37 @@ const TUTORIAL_STEPS = [
   {
     route: 'index',
     icon: 'calculator' as const,
-    title: 'How Fast',
-    description:
-      'This is where you scan your jump with your camera and set your phone on the lip to measure its angle! Or you can type in the dimensions yourself if you prefer.',
+    title: 'Set up your jump',
+    description: 'Build a jump estimate from measured dimensions. Start with the ramp angle and gap, then check every input before reading the result.',
+    drill: 'Try the camera or inclinometer tools, or enter dimensions by hand. Treat every result as an estimate, not a go / no-go call.',
   },
   {
     route: 'ride-better',
     icon: 'school' as const,
-    title: 'Ride Better',
-    description:
-      'Even if it\'s only one, we created this page hoping to prevent devastating wrecks. You can find your local motorcycle laws, tips, and reminders of riding habits that might save your life or your motorcycle. Along with a skills index for learning new skills and techniques.',
+    title: 'Sharpen your skills',
+    description: 'Find motocross skills, riding habits, and local riding information in one spot.',
+    drill: 'Pick one skill to work on at a properly managed track. Progress at your pace, wear protective gear, and follow the track rules.',
   },
   {
     route: 'saved',
     icon: 'bookmark' as const,
-    title: 'My Jumps',
-    description:
-      'This is your jump map. Save jumps that you might want to go back to later. You can also choose to share those jumps with all other Wreck-Less riders or challenge your friends by sending them your jump share code.',
+    title: 'Save your sessions',
+    description: 'Keep jump estimates you want to revisit and organize your riding notes.',
+    drill: 'Save a calculation with a clear name. Add notes so you remember what was measured and when.',
   },
   {
     route: 'map',
     icon: 'map' as const,
-    title: 'Nearby Jumps',
-    description:
-      'This is where you can find all the jumps that Wreck-Less riders have shared and save time by using their calculation data to skip the measuring.',
+    title: 'Explore shared spots',
+    description: 'Browse locations shared by riders and review the details attached to each one.',
+    drill: 'Use shared data as a starting point only. Conditions change—inspect the actual track and landing area yourself.',
   },
   {
     route: 'profile',
     icon: 'bicycle' as const,
-    title: 'My Bike',
-    description:
-      'Save your body weight and your exact motorcycle to be automatically factored into the calculation.',
+    title: 'Set up your bike',
+    description: 'Save your motocross bike and body weight so the calculator can fill them in for you.',
+    drill: 'Choose the bike you ride and enter your weight. Double-check both values before each calculation.',
   },
 ];
 
@@ -155,9 +156,19 @@ function CustomTabBar({
 export default function TabLayout() {
   const { isTrial, trialInfo } = useSubscription();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const [tutorialStep, setTutorialStep] = useState(0);
   const [showTutorial, setShowTutorial] = useState(false);
   const [tutorialStorageError, setTutorialStorageError] = useState(false);
+  const [tutorialCardLayout, setTutorialCardLayout] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [completedTutorialSteps, setCompletedTutorialSteps] = useState<Set<string>>(
+    () => new Set()
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -194,10 +205,16 @@ export default function TabLayout() {
   const startBeginnerGuide = () => {
     setTutorialStep(0);
     setTutorialStorageError(false);
+    setCompletedTutorialSteps(new Set());
     setShowTutorial(true);
   };
 
   const currentTutorialStep = TUTORIAL_STEPS[tutorialStep];
+  const guideTabIndex = TUTORIAL_STEPS.findIndex(
+    (step) => step.route === currentTutorialStep.route
+  );
+  const tabCenterX = 4 + ((width - 8) * (guideTabIndex + 0.5)) / TUTORIAL_STEPS.length;
+  const tabCenterY = height - insets.bottom - 40;
   const selectTutorialRoute = (routeName: string) => {
     const matchingStep = TUTORIAL_STEPS.findIndex((step) => step.route === routeName);
     if (matchingStep >= 0) {
@@ -277,16 +294,80 @@ export default function TabLayout() {
 
       {showTutorial && (
         <View pointerEvents="box-none" style={styles.tutorialOverlay}>
-          <View style={[styles.tutorialCard, { bottom: insets.bottom + 84 }]}>
+          <View pointerEvents="none" style={styles.tutorialScrim} />
+          {tutorialCardLayout && (
+            <Svg
+              pointerEvents="none"
+              width={width}
+              height={height}
+              style={styles.tutorialArrowOverlay}
+            >
+              <Path
+                d={`M ${tutorialCardLayout.x + tutorialCardLayout.width / 2} ${tutorialCardLayout.y + tutorialCardLayout.height} C ${tutorialCardLayout.x + tutorialCardLayout.width / 2} ${tutorialCardLayout.y + tutorialCardLayout.height + 48}, ${tabCenterX} ${tabCenterY - 76}, ${tabCenterX} ${tabCenterY - 20}`}
+                fill="none"
+                stroke="#D4F66E"
+                strokeWidth="3"
+                strokeDasharray="7,6"
+                strokeLinecap="round"
+              />
+              <Circle
+                cx={tabCenterX}
+                cy={tabCenterY}
+                r="22"
+                fill="none"
+                stroke="#D4F66E"
+                strokeWidth="2"
+                opacity={0.55}
+              />
+              <Polygon
+                points={`${tabCenterX},${tabCenterY - 5} ${tabCenterX - 8},${tabCenterY - 22} ${tabCenterX + 8},${tabCenterY - 22}`}
+                fill="#D4F66E"
+              />
+            </Svg>
+          )}
+          <View
+            pointerEvents="box-none"
+            style={[styles.tutorialCenter, { paddingBottom: insets.bottom + 72 }]}
+          >
+            <View
+              onLayout={({ nativeEvent }) =>
+                setTutorialCardLayout({
+                  ...nativeEvent.layout,
+                  x: nativeEvent.layout.x + 12,
+                })
+              }
+              style={styles.tutorialCard}
+            >
+            <View style={styles.tutorialMasthead}>
+              <View style={styles.tutorialMastheadIcon}>
+                <Ionicons name="trail-sign" size={16} color="#081116" />
+              </View>
+              <Text style={styles.tutorialMastheadText}>ROOKIE TO RIDE-READY</Text>
+              <Text style={styles.tutorialStepCount}>
+                {String(tutorialStep + 1).padStart(2, '0')} / {String(TUTORIAL_STEPS.length).padStart(2, '0')}
+              </Text>
+            </View>
+            <View style={styles.tutorialProgressTrack}>
+              {TUTORIAL_STEPS.map((step, index) => (
+                <View
+                  key={step.route}
+                  style={[
+                    styles.tutorialProgressSegment,
+                    index <= tutorialStep && styles.tutorialProgressSegmentActive,
+                    completedTutorialSteps.has(step.route) && styles.tutorialProgressSegmentDone,
+                  ]}
+                />
+              ))}
+            </View>
             <View style={styles.tutorialHeader}>
               <View style={styles.tutorialIcon}>
                 <Ionicons name={currentTutorialStep.icon} size={23} color="#A6D608" />
               </View>
               <View style={styles.tutorialHeading}>
-                <Text style={styles.tutorialEyebrow}>
-                  BEGINNER GUIDE · {tutorialStep + 1} OF {TUTORIAL_STEPS.length}
-                </Text>
                 <Text style={styles.tutorialTitle}>{currentTutorialStep.title}</Text>
+                <Text style={styles.tutorialSubtitle}>
+                  {routeLabelMap[currentTutorialStep.route]} · RIDER STARTER GUIDE
+                </Text>
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -298,8 +379,59 @@ export default function TabLayout() {
               </Pressable>
             </View>
             <Text style={styles.tutorialDescription}>{currentTutorialStep.description}</Text>
+            <View style={styles.tutorialDrill}>
+              <View style={styles.tutorialDrillHeader}>
+                <Ionicons name="flash" size={15} color="#A6D608" />
+                <Text style={styles.tutorialDrillLabel}>YOUR RIDER MOVE</Text>
+              </View>
+              <Text style={styles.tutorialDrillText}>{currentTutorialStep.drill}</Text>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{
+                  checked: completedTutorialSteps.has(currentTutorialStep.route),
+                }}
+                accessibilityLabel={`Mark ${currentTutorialStep.title} guide step ${
+                  completedTutorialSteps.has(currentTutorialStep.route) ? 'incomplete' : 'complete'
+                }`}
+                onPress={() => {
+                  setCompletedTutorialSteps((previous) => {
+                    const updated = new Set(previous);
+                    if (updated.has(currentTutorialStep.route)) {
+                      updated.delete(currentTutorialStep.route);
+                    } else {
+                      updated.add(currentTutorialStep.route);
+                    }
+                    return updated;
+                  });
+                }}
+                style={[
+                  styles.tutorialDoneButton,
+                  completedTutorialSteps.has(currentTutorialStep.route) &&
+                    styles.tutorialDoneButtonComplete,
+                ]}
+              >
+                <Ionicons
+                  name={
+                    completedTutorialSteps.has(currentTutorialStep.route)
+                      ? 'checkmark-circle'
+                      : 'ellipse-outline'
+                  }
+                  size={18}
+                  color={
+                    completedTutorialSteps.has(currentTutorialStep.route)
+                      ? '#A6D608'
+                      : '#C2D0CE'
+                  }
+                />
+                <Text style={styles.tutorialDoneText}>
+                  {completedTutorialSteps.has(currentTutorialStep.route)
+                    ? 'STEP COMPLETE'
+                    : 'MARK STEP COMPLETE'}
+                </Text>
+              </Pressable>
+            </View>
             <Text style={styles.tutorialPointerText}>
-              The highlighted tab below is where you’ll find this feature.
+              Tap the glowing tab to jump straight to this part of the app.
             </Text>
 
             {tutorialStorageError && (
@@ -315,6 +447,7 @@ export default function TabLayout() {
                   onPress={() => setTutorialStep((step) => step - 1)}
                   style={styles.tutorialSecondaryButton}
                 >
+                  <Ionicons name="arrow-back" size={16} color="#F5FAF8" />
                   <Text style={styles.tutorialSecondaryText}>Back</Text>
                 </Pressable>
               ) : (
@@ -323,7 +456,7 @@ export default function TabLayout() {
                   onPress={() => void finishTutorial()}
                   style={styles.tutorialSecondaryButton}
                 >
-                  <Text style={styles.tutorialSecondaryText}>Skip</Text>
+                  <Text style={styles.tutorialSecondaryText}>Skip guide</Text>
                 </Pressable>
               )}
               <Pressable
@@ -338,7 +471,7 @@ export default function TabLayout() {
                 style={styles.tutorialPrimaryButton}
               >
                 <Text style={styles.tutorialPrimaryText}>
-                  {tutorialStep < TUTORIAL_STEPS.length - 1 ? 'Next tab' : 'Finish'}
+                  {tutorialStep < TUTORIAL_STEPS.length - 1 ? 'Next trail stop' : 'Finish guide'}
                 </Text>
                 <Ionicons
                   name={tutorialStep < TUTORIAL_STEPS.length - 1 ? 'arrow-forward' : 'checkmark'}
@@ -356,6 +489,7 @@ export default function TabLayout() {
                 <Text style={styles.tutorialSecondaryText}>Close guide anyway</Text>
               </Pressable>
             )}
+            </View>
           </View>
         </View>
       )}
@@ -410,37 +544,101 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     zIndex: 20,
   },
+  tutorialScrim: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(3, 10, 13, 0.58)',
+  },
+  tutorialArrowOverlay: {
+    ...StyleSheet.absoluteFill,
+  },
+  tutorialCenter: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
   tutorialCard: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
+    width: '100%',
     maxWidth: 420,
-    padding: 16,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#405C65',
-    borderRadius: 18,
-    backgroundColor: '#14262D',
+    borderColor: '#A6D608',
+    borderRadius: 22,
+    backgroundColor: '#102027',
     shadowColor: '#000000',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 12,
+    shadowOpacity: 0.48,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 18,
+  },
+  tutorialMasthead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  tutorialMastheadIcon: {
+    width: 25,
+    height: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#A6D608',
+  },
+  tutorialMastheadText: {
+    flex: 1,
+    color: '#D4F66E',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+  tutorialStepCount: {
+    color: '#F5FAF8',
+    fontSize: 11,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  tutorialProgressTrack: {
+    flexDirection: 'row',
+    gap: 5,
+    marginBottom: 14,
+  },
+  tutorialProgressSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: '#35515A',
+  },
+  tutorialProgressSegmentActive: {
+    backgroundColor: '#55741B',
+  },
+  tutorialProgressSegmentDone: {
+    backgroundColor: '#A6D608',
   },
   tutorialHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   tutorialIcon: {
-    width: 42,
-    height: 42,
+    width: 50,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 13,
-    backgroundColor: 'rgba(166, 214, 8, 0.14)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(166, 214, 8, 0.45)',
+    backgroundColor: 'rgba(166, 214, 8, 0.12)',
   },
   tutorialHeading: {
     flex: 1,
+  },
+  tutorialSubtitle: {
+    marginTop: 4,
+    color: '#A6D608',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.9,
   },
   tutorialCloseButton: {
     width: 36,
@@ -450,39 +648,85 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     backgroundColor: '#28434B',
   },
-  tutorialEyebrow: {
-    color: '#A6D608',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-  },
   tutorialTitle: {
-    marginTop: 3,
     color: '#F5FAF8',
-    fontSize: 19,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.4,
   },
   tutorialDescription: {
-    marginTop: 12,
-    color: '#CED9D6',
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: 14,
+    color: '#F5FAF8',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  tutorialDrill: {
+    padding: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#35515A',
+    borderRadius: 14,
+    backgroundColor: '#172B32',
+  },
+  tutorialDrillHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  tutorialDrillLabel: {
+    color: '#D4F66E',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  tutorialDrillText: {
+    marginTop: 7,
+    color: '#E4EEEB',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 19,
+  },
+  tutorialDoneButton: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 7,
+    marginTop: 9,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#49636A',
+    borderRadius: 10,
+    backgroundColor: '#102027',
+  },
+  tutorialDoneButtonComplete: {
+    borderColor: '#A6D608',
+    backgroundColor: 'rgba(166, 214, 8, 0.1)',
+  },
+  tutorialDoneText: {
+    color: '#F5FAF8',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.45,
   },
   tutorialPointerText: {
-    marginTop: 9,
-    color: '#A6D608',
-    fontSize: 12,
-    fontWeight: '600',
+    marginTop: 10,
+    color: '#D4F66E',
+    fontSize: 11,
+    fontWeight: '800',
   },
   tutorialActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
-    marginTop: 14,
+    marginTop: 15,
   },
   tutorialSecondaryButton: {
-    minWidth: 72,
-    minHeight: 42,
+    minWidth: 84,
+    minHeight: 46,
+    flexDirection: 'row',
+    gap: 6,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
@@ -490,13 +734,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#28434B',
   },
   tutorialSecondaryText: {
-    color: '#CED9D6',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#F5FAF8',
+    fontSize: 13,
+    fontWeight: '800',
   },
   tutorialPrimaryButton: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 46,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -506,8 +750,8 @@ const styles = StyleSheet.create({
   },
   tutorialPrimaryText: {
     color: '#000000',
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '900',
   },
   tutorialError: {
     marginTop: 10,

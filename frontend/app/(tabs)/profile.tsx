@@ -27,17 +27,22 @@ import {
   addRiderBikeProfile,
   deleteRiderBikeProfile,
   getRiderProfileData,
+  getSavedRiderWeight,
   recordRiderJump,
   RiderJumpLog,
+  saveRiderWeight,
   saveRiderBikeProfileImage,
   SavedBikeProfile,
   selectRiderBikeProfile,
 } from '@/lib/appSupport';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 const MAX_SAVED_PROFILES = 3;
 type BikePickerField = 'year' | 'brand' | 'model';
 
 export default function Profile() {
+  const router = useRouter();
+  const { openJumpLog } = useLocalSearchParams<{ openJumpLog?: string }>();
   const [profiles, setProfiles] = useState<SavedBikeProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [jumps, setJumps] = useState<RiderJumpLog[]>([]);
@@ -47,9 +52,11 @@ export default function Profile() {
   const [manualEntry, setManualEntry] = useState(false);
   const [manualBrand, setManualBrand] = useState('');
   const [manualWeight, setManualWeight] = useState('');
+  const [riderWeight, setRiderWeight] = useState('');
   const [newBikeImageUri, setNewBikeImageUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingRiderWeight, setSavingRiderWeight] = useState(false);
   const [showBikeModal, setShowBikeModal] = useState(false);
   const [showPickerModal, setShowPickerModal] = useState(false);
   const [pickerField, setPickerField] = useState<BikePickerField>('year');
@@ -57,6 +64,11 @@ export default function Profile() {
   const [speed, setSpeed] = useState('');
   const [gap, setGap] = useState('');
   const [jumpHeight, setJumpHeight] = useState('');
+
+  const closeJumpModal = useCallback(() => {
+    setShowJumpModal(false);
+    router.setParams({ openJumpLog: undefined });
+  }, [router]);
 
   const loadData = useCallback(async () => {
     const data = await getRiderProfileData();
@@ -85,6 +97,19 @@ export default function Profile() {
       .finally(() => {
         if (isMounted) {
           setLoading(false);
+        }
+      });
+
+    getSavedRiderWeight()
+      .then((savedWeight) => {
+        if (isMounted && savedWeight !== null) {
+          setRiderWeight(String(savedWeight));
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('Error loading saved rider weight:', error);
+        if (isMounted) {
+          Alert.alert('Could not load saved weight', 'You can enter and save it again.');
         }
       });
 
@@ -209,6 +234,26 @@ export default function Profile() {
     }
   };
 
+  const saveBodyWeight = async () => {
+    const weightLbs = Number(riderWeight);
+    if (!Number.isFinite(weightLbs) || weightLbs < 1 || weightLbs > 1000) {
+      Alert.alert('Check rider weight', 'Enter a weight between 1 and 1,000 pounds.');
+      return;
+    }
+
+    setSavingRiderWeight(true);
+    try {
+      await saveRiderWeight(weightLbs);
+      setRiderWeight(String(weightLbs));
+      Alert.alert('Weight saved', 'Your weight will be used for jump calculations.');
+    } catch (error) {
+      console.error('Error saving rider weight:', error);
+      Alert.alert('Could not save weight', 'Please try again.');
+    } finally {
+      setSavingRiderWeight(false);
+    }
+  };
+
   const selectBikePhoto = async (): Promise<string | null> => {
     if (Platform.OS !== 'web') {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -299,7 +344,7 @@ export default function Profile() {
         outcome,
       });
       await loadData();
-      setShowJumpModal(false);
+      closeJumpModal();
       setSpeed('');
       setGap('');
       setJumpHeight('');
@@ -328,6 +373,37 @@ export default function Profile() {
             <Text style={styles.title}>Rider Profile</Text>
             <Text style={styles.subtitle}>Your bikes and jump history</Text>
           </View>
+        </View>
+
+        <View style={styles.detailsCard}>
+          <Text style={styles.detailTitle}>Rider body weight</Text>
+          <Text style={styles.detailText}>
+            Save your weight once and it will be filled in automatically for jump calculations.
+          </Text>
+          <TextInput
+            style={[styles.formInput, styles.riderWeightInput]}
+            value={riderWeight}
+            onChangeText={setRiderWeight}
+            placeholder="Enter weight in pounds"
+            placeholderTextColor="#9AADB0"
+            keyboardType="decimal-pad"
+            accessibilityLabel="Rider body weight in pounds"
+          />
+          <TouchableOpacity
+            style={[styles.saveBikeButton, savingRiderWeight && styles.saveBikeButtonDisabled]}
+            onPress={() => void saveBodyWeight()}
+            disabled={savingRiderWeight}
+            accessibilityRole="button"
+          >
+            {savingRiderWeight ? (
+              <ActivityIndicator color="#000000" />
+            ) : (
+              <>
+                <Ionicons name="save-outline" size={18} color="#000000" />
+                <Text style={styles.saveBikeButtonText}>Save body weight</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         <View style={styles.sectionHeading}>
@@ -693,10 +769,10 @@ export default function Profile() {
       </Modal>
 
       <Modal
-        visible={showJumpModal}
+        visible={showJumpModal || openJumpLog === 'true'}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowJumpModal(false)}
+        onRequestClose={closeJumpModal}
       >
         <View style={styles.jumpModalOverlay}>
           <View style={styles.jumpModalCard}>
@@ -705,7 +781,7 @@ export default function Profile() {
                 <Text style={styles.modalEyebrow}>JUMP LOG</Text>
                 <Text style={styles.modalTitle}>Record this jump</Text>
               </View>
-              <TouchableOpacity onPress={() => setShowJumpModal(false)} accessibilityLabel="Close">
+              <TouchableOpacity onPress={closeJumpModal} accessibilityLabel="Close">
                 <Ionicons name="close" size={24} color="#F5FAF8" />
               </TouchableOpacity>
             </View>
@@ -827,6 +903,7 @@ const styles = StyleSheet.create({
   logJumpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, marginTop: 16, borderRadius: 12, backgroundColor: '#A6D608' },
   logJumpText: { color: '#000000', fontSize: 14, fontWeight: '700' },
   detailsCard: { padding: 16, marginTop: 14, borderRadius: 16, backgroundColor: '#1B3038' },
+  riderWeightInput: { marginTop: 12 },
   detailTitle: { color: '#F5FAF8', fontSize: 15, fontWeight: '700', marginBottom: 4 },
   detailText: { color: '#C2D0CE', fontSize: 13, lineHeight: 20, marginTop: 3 },
   emptyCard: { alignItems: 'center', padding: 28, marginTop: 12, borderRadius: 18, backgroundColor: '#1B3038' },
