@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { Stack } from 'expo-router';
-import { InteractionManager } from 'react-native';
 import {
   fetchJsonWithBackend,
   getDeviceId,
@@ -102,12 +101,12 @@ export default function RootLayout() {
 
   useEffect(() => {
     isMountedRef.current = true;
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = requestIdleCallback(() => {
       void checkSubscription();
     });
 
     return () => {
-      task.cancel();
+      cancelIdleCallback(task);
       isMountedRef.current = false;
     };
   }, [checkSubscription]);

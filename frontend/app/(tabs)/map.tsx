@@ -8,7 +8,6 @@ import {
   ScrollView,
   RefreshControl,
   Modal,
-  InteractionManager,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -310,12 +309,12 @@ export default function MapScreen() {
 
   useEffect(() => {
     isMountedRef.current = true;
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = requestIdleCallback(() => {
       void fetchLocations();
     });
 
     return () => {
-      task.cancel();
+      cancelIdleCallback(task);
       isMountedRef.current = false;
     };
   }, [fetchLocations]);
@@ -329,10 +328,10 @@ export default function MapScreen() {
       return;
     }
 
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = requestIdleCallback(() => {
       void getUserLocation();
     });
-    return () => task.cancel();
+    return () => cancelIdleCallback(task);
   }, [focusedJump, getUserLocation]);
 
   const clearFocusedJump = () => {

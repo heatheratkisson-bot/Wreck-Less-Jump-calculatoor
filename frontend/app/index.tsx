@@ -55,7 +55,7 @@ export default function StartupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#081116',
+    backgroundColor: '#0D1014',
   },
   topGlow: {
     position: 'absolute',
@@ -119,6 +119,7 @@ const styles = StyleSheet.create({
   logo: {
     width: '100%',
     height: '100%',
+    opacity: 0.84,
   },
   bottomBlock: {
     width: '100%',

@@ -12,7 +12,6 @@ import {
   Share,
   TextInput,
   Modal,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -109,13 +108,13 @@ export default function SavedScreen() {
 
   useFocusEffect(useCallback(() => {
     isMountedRef.current = true;
-    const task = InteractionManager.runAfterInteractions(() => {
+    const task = requestIdleCallback(() => {
       void fetchCalculations();
       void fetchRiderData();
     });
 
     return () => {
-      task.cancel();
+      cancelIdleCallback(task);
       isMountedRef.current = false;
     };
   }, [fetchCalculations, fetchRiderData]));
