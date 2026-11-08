@@ -21,6 +21,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
+import { getPreferredUnitSystem, savePreferredUnitSystem } from '@/lib/preferences';
 import MeasureScreen from './measure';
 import type { MeasureScreenHandle, Measurements } from './measure';
 import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
@@ -117,37 +118,59 @@ export default function Index() {
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
-      getSelectedMotorcycle()
-        .then((motorcycle) => {
+      const loadRiderSettings = async () => {
+        try {
+          const preferredUnits = await getPreferredUnitSystem();
           if (!isMounted) {
             return;
           }
-          setSelectedMotorcycle(motorcycle);
-          const weight = useMetric ? motorcycle.weight_lbs / 2.20462 : motorcycle.weight_lbs;
-          setBikeWeight(weight.toFixed(1));
-        })
-        .catch((error: unknown) => {
-          console.error('Could not load selected bike weight:', error);
-        });
+          const metric = preferredUnits === 'metric';
+          setUseMetric(metric);
 
-      getSavedRiderWeight()
-        .then((savedRiderWeight) => {
-          if (isMounted && savedRiderWeight !== null) {
-            const riderWeightValue = useMetric
-              ? savedRiderWeight / 2.20462
-              : savedRiderWeight;
-            setRiderWeight(riderWeightValue.toFixed(1));
+          try {
+            const motorcycle = await getSelectedMotorcycle();
+            if (isMounted) {
+              setSelectedMotorcycle(motorcycle);
+              const weight = metric ? motorcycle.weight_lbs / 2.20462 : motorcycle.weight_lbs;
+              setBikeWeight(weight.toFixed(1));
+            }
+          } catch (error) {
+            console.error('Could not load selected bike weight:', error);
           }
-        })
-        .catch((error: unknown) => {
-          console.error('Could not load saved rider weight:', error);
-        });
+
+          try {
+            const savedRiderWeight = await getSavedRiderWeight();
+            if (isMounted && savedRiderWeight !== null) {
+              const riderWeightValue = metric ? savedRiderWeight / 2.20462 : savedRiderWeight;
+              setRiderWeight(riderWeightValue.toFixed(1));
+            }
+          } catch (error) {
+            console.error('Could not load saved rider weight:', error);
+          }
+        } catch (error) {
+          console.error('Could not load unit preference:', error);
+        }
+      };
+
+      void loadRiderSettings();
 
       return () => {
         isMounted = false;
       };
-    }, [useMetric])
+    }, [])
   );
+
+  const updateUnitPreference = async (metric: boolean) => {
+    const previousValue = useMetric;
+    setUseMetric(metric);
+    try {
+      await savePreferredUnitSystem(metric ? 'metric' : 'imperial');
+    } catch (error) {
+      console.error('Could not save unit preference:', error);
+      setUseMetric(previousValue);
+      Alert.alert('Could not save units', 'Your unit preference was not changed. Please try again.');
+    }
+  };
 
   const stopPacing = useCallback(() => {
     pacingRequestedRef.current = false;
@@ -1203,13 +1226,13 @@ export default function Index() {
             <Text style={styles.unitLabel}>Units</Text>
             <TouchableOpacity
               style={[styles.toggleButton, !useMetric && styles.toggleActive]}
-              onPress={() => setUseMetric(false)}
+              onPress={() => void updateUnitPreference(false)}
             >
               <Text style={[styles.toggleText, !useMetric && styles.toggleTextActive]}>Feet</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.toggleButton, useMetric && styles.toggleActive]}
-              onPress={() => setUseMetric(true)}
+              onPress={() => void updateUnitPreference(true)}
             >
               <Text style={[styles.toggleText, useMetric && styles.toggleTextActive]}>Meters</Text>
             </TouchableOpacity>

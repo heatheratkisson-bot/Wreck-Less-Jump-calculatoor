@@ -74,21 +74,35 @@ const routeIconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
   profile: 'person',
 };
 
+type CustomTabBarProps = {
+  state: {
+    index: number;
+    routes: { key: string; name: string }[];
+  };
+  navigateToTab: (routeKey: string) => void;
+  guideStep: (typeof TUTORIAL_STEPS)[number];
+  showTutorial: boolean;
+  onSelectGuideRoute: (routeName: string) => void;
+};
+
 function CustomTabBar({
   state,
-  navigation,
+  navigateToTab,
   guideStep,
   showTutorial,
   onSelectGuideRoute,
-}: any) {
+}: CustomTabBarProps) {
   const insets = useSafeAreaInsets();
   const currentRoute = state.routes[state.index]?.name;
 
   useEffect(() => {
     if (showTutorial && guideStep && currentRoute !== guideStep.route) {
-      navigation.navigate(guideStep.route);
+      const targetRoute = state.routes.find((route) => route.name === guideStep.route);
+      if (targetRoute) {
+        navigateToTab(targetRoute.key);
+      }
     }
-  }, [currentRoute, guideStep, navigation, showTutorial]);
+  }, [currentRoute, guideStep, navigateToTab, showTutorial, state.routes]);
 
   return (
     <View
@@ -101,7 +115,7 @@ function CustomTabBar({
         },
       ]}
     >
-      {state.routes.filter((route: any) => route.name !== 'measure').map((route: any) => {
+      {state.routes.filter((route) => route.name !== 'measure').map((route) => {
         const isFocused = state.routes[state.index]?.key === route.key;
         const isGuideTarget = showTutorial && guideStep?.route === route.name;
 
@@ -113,7 +127,7 @@ function CustomTabBar({
             accessibilityState={{ selected: isFocused }}
             accessibilityHint={isGuideTarget ? 'Highlighted by the beginner guide' : undefined}
             onPress={() => {
-              navigation.navigate(route.name);
+              navigateToTab(route.key);
               if (showTutorial) {
                 onSelectGuideRoute(route.name);
               }
@@ -236,7 +250,6 @@ export default function TabLayout() {
 
       <BeginnerGuideProvider value={{ startBeginnerGuide }}>
         <Tabs
-          initialRouteName="index"
           screenOptions={{
             headerShown: false,
             lazy: true,
@@ -244,14 +257,19 @@ export default function TabLayout() {
             tabBarStyle: { display: 'none' },
             tabBarShowLabel: false,
           }}
-          tabBar={(props) => (
-            <CustomTabBar
-              {...props}
-              guideStep={currentTutorialStep}
-              showTutorial={showTutorial}
-              onSelectGuideRoute={selectTutorialRoute}
-            />
-          )}
+          tabBar={(props) => {
+            if (props.state.routes[props.state.index]?.name === 'settings') {
+              return null;
+            }
+            return (
+              <CustomTabBar
+                {...props}
+                guideStep={currentTutorialStep}
+                showTutorial={showTutorial}
+                onSelectGuideRoute={selectTutorialRoute}
+              />
+            );
+          }}
         >
           <Tabs.Screen
             name="index"
@@ -287,6 +305,12 @@ export default function TabLayout() {
             name="profile"
             options={{
               title: 'My Bike',
+            }}
+          />
+          <Tabs.Screen
+            name="settings"
+            options={{
+              href: null,
             }}
           />
         </Tabs>
