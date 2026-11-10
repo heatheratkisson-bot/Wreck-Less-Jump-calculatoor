@@ -18,6 +18,7 @@ import { SKILL_CATEGORIES, SKILL_SOURCES } from '@/lib/rideBetterSkills';
 import type { SkillCategory } from '@/lib/rideBetterSkills';
 import { calculateGearSpeeds } from '@/lib/gearCalculator';
 import SkillHeroPhoto from '@/components/SkillHeroPhoto';
+import { useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
 
 const RIDING_LOCATION_KEY = 'wreckless_ride_better_location_v1';
 const CHP_MOTORCYCLE_SAFETY_URL =
@@ -70,6 +71,7 @@ const SAFETY_GUIDES = [
 ];
 
 export default function RideBetterScreen() {
+  const sectionTabsGuideTarget = useBeginnerGuideTarget('ride-better');
   const [selectedCategory, setSelectedCategory] = useState<SkillCategory | null>(null);
   const [section, setSection] = useState<RideSection>('safety');
   const [ridingLocation, setRidingLocation] = useState('Kern County, California');
@@ -174,7 +176,13 @@ export default function RideBetterScreen() {
           </View>
         </View>
 
-        <View style={styles.sectionTabs} accessibilityRole="tablist">
+        <View
+          ref={sectionTabsGuideTarget.ref}
+          onLayout={sectionTabsGuideTarget.onLayout}
+          collapsable={false}
+          style={styles.sectionTabs}
+          accessibilityRole="tablist"
+        >
           <Pressable
             accessibilityRole="tab"
             accessibilityState={{ selected: section === 'safety' }}

@@ -28,11 +28,13 @@ import {
   SavedCalculation,
   RiderProfileData,
 } from '@/lib/appSupport';
+import { useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
 
 const { width } = Dimensions.get('window');
 
 export default function SavedScreen() {
   const router = useRouter();
+  const savedListGuideTarget = useBeginnerGuideTarget('saved');
   const [calculations, setCalculations] = useState<SavedCalculation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -621,7 +623,12 @@ export default function SavedScreen() {
         </View>
       )}
 
-      <View style={styles.listHeading}>
+      <View
+        ref={savedListGuideTarget.ref}
+        onLayout={savedListGuideTarget.onLayout}
+        collapsable={false}
+        style={styles.listHeading}
+      >
         <Text style={styles.listTitle}>Jump calculations</Text>
         <Text style={styles.listCount}>{calculations.length} SAVED</Text>
       </View>

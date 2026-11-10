@@ -8,6 +8,7 @@ import {
   Dimensions,
   Alert,
   Image,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -45,7 +46,9 @@ interface MeasureScreenProps {
 
 const MeasureScreen = forwardRef<MeasureScreenHandle, MeasureScreenProps>(
   function MeasureScreen({ onUseMeasurements }, ref) {
-  const [mode, setMode] = useState<MeasureMode>('sensor');
+  const [mode, setMode] = useState<MeasureMode>(
+    Platform.OS === 'web' ? 'photo' : 'sensor'
+  );
 
   // Angle measurement states
   const [isCalibrating, setIsCalibrating] = useState(false);
@@ -340,14 +343,20 @@ const MeasureScreen = forwardRef<MeasureScreenHandle, MeasureScreenProps>(
         <View style={styles.modeSelector}>
           <TouchableOpacity
             accessibilityRole="tab"
-            accessibilityState={{ selected: mode === 'sensor' }}
+            accessibilityState={{
+              selected: mode === 'sensor',
+              disabled: Platform.OS === 'web',
+            }}
             style={[styles.modeTab, mode === 'sensor' && styles.modeTabActive]}
+            disabled={Platform.OS === 'web'}
             onPress={() => setMode('sensor')}
           >
             <Ionicons name="phone-portrait" size={18} color={mode === 'sensor' ? '#000000' : '#C2D0CE'} />
             <View>
               <Text style={[styles.modeTabText, mode === 'sensor' && styles.modeTabTextActive]}>Angle</Text>
-              <Text style={[styles.modeTabHint, mode === 'sensor' && styles.modeTabHintActive]}>Phone sensor</Text>
+              <Text style={[styles.modeTabHint, mode === 'sensor' && styles.modeTabHintActive]}>
+                {Platform.OS === 'web' ? 'Mobile app only' : 'Phone sensor'}
+              </Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity

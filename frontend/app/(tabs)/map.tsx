@@ -22,6 +22,7 @@ import {
   listMapLocationsLocally,
   MapLocation,
 } from '@/lib/appSupport';
+import { useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
 
 const SATELLITE_MAP_HTML = `<!doctype html>
 <html>
@@ -164,6 +165,7 @@ const SATELLITE_MAP_HTML = `<!doctype html>
 </html>`;
 
 export default function MapScreen() {
+  const mapGuideTarget = useBeginnerGuideTarget('map');
   const router = useRouter();
   const params = useLocalSearchParams<{
     focusLat?: string;
@@ -359,7 +361,12 @@ export default function MapScreen() {
 
   const renderSatelliteMap = () => {
     return (
-      <View style={styles.mapContainer}>
+      <View
+        ref={mapGuideTarget.ref}
+        onLayout={mapGuideTarget.onLayout}
+        collapsable={false}
+        style={styles.mapContainer}
+      >
         <WebView
           ref={mapWebViewRef}
           source={{ html: SATELLITE_MAP_HTML }}

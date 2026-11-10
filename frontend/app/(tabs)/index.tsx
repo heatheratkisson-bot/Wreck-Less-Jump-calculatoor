@@ -15,6 +15,7 @@ import {
   Share,
   Image,
   Linking,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -24,7 +25,7 @@ import * as Speech from 'expo-speech';
 import { getPreferredUnitSystem, savePreferredUnitSystem } from '@/lib/preferences';
 import MeasureScreen from './measure';
 import type { MeasureScreenHandle, Measurements } from './measure';
-import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
+import { useBeginnerGuide, useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
 import type { MotorcycleModel } from '@/lib/motorcycleData';
 import Svg, { Path, Circle, Ellipse, Line, Text as SvgText, G, Polygon, Rect } from 'react-native-svg';
 import * as Location from 'expo-location';
@@ -55,8 +56,11 @@ import {
 const { width } = Dimensions.get('window');
 
 export default function Index() {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isWideLayout = windowWidth >= 400 && windowWidth > windowHeight;
   const router = useRouter();
   const { startBeginnerGuide } = useBeginnerGuide();
+  const rampDetailsGuideTarget = useBeginnerGuideTarget('index');
   // Input states
   const [rampHeight, setRampHeight] = useState('');
   const [rampAngle, setRampAngle] = useState('');
@@ -1128,14 +1132,13 @@ export default function Index() {
       >
         <View
           accessibilityRole="header"
-          accessibilityLabel="Be safer, ride better, wreck less!"
+          accessibilityLabel="WreckLess Jump Calculator"
           style={styles.sloganHeader}
         >
-          <View style={styles.sloganSideSpace} />
           <View style={styles.sloganCopy}>
-            <Text style={styles.telemetryEyebrow}>WRECK LESS // JUMP TELEMETRY</Text>
-            <Text style={styles.sloganFirstLine}>BE SAFER, RIDE BETTER</Text>
-            <Text style={styles.sloganSecondLine}>WRECK LESS!</Text>
+            <Text style={styles.sloganFirstLine}>
+              <Text style={styles.brandName}>WreckLess</Text> Jump Calculator
+            </Text>
           </View>
           <TouchableOpacity
             accessibilityRole="button"
@@ -1145,123 +1148,93 @@ export default function Index() {
             style={styles.instructionsButton}
           >
             <Ionicons name="help-circle-outline" size={16} color="#A6D608" />
-            <Text style={styles.instructionsButtonText}>Instructions</Text>
           </TouchableOpacity>
         </View>
-        <View style={styles.telemetryStrip} accessibilityLabel="Live jump telemetry">
-          <View style={styles.telemetryCell}>
-            <Text style={styles.telemetryLabel}>RAMP ANGLE</Text>
-            <Text style={styles.telemetryValue}>{rampAngle || '--'}<Text style={styles.telemetryUnit}>°</Text></Text>
-          </View>
-          <View style={styles.telemetryDivider} />
-          <View style={styles.telemetryCell}>
-            <Text style={styles.telemetryLabel}>GAP DISTANCE</Text>
-            <Text style={styles.telemetryValue}>{gapDistance || '--'}<Text style={styles.telemetryUnit}> {distanceUnit.toUpperCase()}</Text></Text>
-          </View>
-          <View style={styles.telemetryDivider} />
-          <View style={styles.telemetryCell}>
-            <Text style={styles.telemetryLabel}>UNIT MODE</Text>
-            <Text style={styles.telemetryValue}>{useMetric ? 'METRIC' : 'IMPERIAL'}</Text>
-          </View>
-        </View>
-        <View style={styles.inputMethodTabs}>
-          <TouchableOpacity
-            accessibilityRole="tab"
-            accessibilityState={{ selected: inputMethod === 'manual' }}
-            onPress={() => {
-              measureScreenRef.current?.stopAngleMeasurement();
-              setInputMethod('manual');
-            }}
-            style={[styles.inputMethodTab, inputMethod === 'manual' && styles.inputMethodTabActive]}
-          >
-            <Ionicons
-              name="create-outline"
-              size={19}
-              color={inputMethod === 'manual' ? '#07111E' : '#A8B5C4'}
-            />
-            <View>
+        <View style={[styles.controlsRow, isWideLayout && styles.wideControlsRow]}>
+          <View style={styles.inputMethodTabs}>
+            <TouchableOpacity
+              accessibilityRole="tab"
+              accessibilityState={{ selected: inputMethod === 'manual' }}
+              onPress={() => {
+                measureScreenRef.current?.stopAngleMeasurement();
+                setInputMethod('manual');
+              }}
+              style={[styles.inputMethodTab, inputMethod === 'manual' && styles.inputMethodTabActive]}
+            >
               <Text style={[styles.inputMethodTitle, inputMethod === 'manual' && styles.inputMethodTextActive]}>
                 Enter Manually
               </Text>
-              <Text style={[styles.inputMethodSubtitle, inputMethod === 'manual' && styles.inputMethodTextActive]}>
-                Type jump details
-              </Text>
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity
-            accessibilityRole="tab"
-            accessibilityState={{ selected: inputMethod === 'measure' }}
-            onPress={() => setInputMethod('measure')}
-            style={[styles.inputMethodTab, inputMethod === 'measure' && styles.inputMethodTabActive]}
-          >
-            <Ionicons
-              name="camera"
-              size={19}
-              color={inputMethod === 'measure' ? '#07111E' : '#A8B5C4'}
-            />
-            <View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="tab"
+              accessibilityState={{ selected: inputMethod === 'measure' }}
+              onPress={() => setInputMethod('measure')}
+              style={[styles.inputMethodTab, inputMethod === 'measure' && styles.inputMethodTabActive]}
+            >
               <Text style={[styles.inputMethodTitle, inputMethod === 'measure' && styles.inputMethodTextActive]}>
                 Measure
               </Text>
-              <Text style={[styles.inputMethodSubtitle, inputMethod === 'measure' && styles.inputMethodTextActive]}>
-                Use phone or photo
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={[
-            styles.inputMethodContent,
-            { display: inputMethod === 'manual' ? 'flex' : 'none' },
-          ]}
-        >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Unit Toggle */}
+            </TouchableOpacity>
+          </View>
           <View style={styles.toggleContainer}>
             <Text style={styles.unitLabel}>Units</Text>
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Use feet"
+              accessibilityState={{ selected: !useMetric }}
               style={[styles.toggleButton, !useMetric && styles.toggleActive]}
               onPress={() => void updateUnitPreference(false)}
             >
               <Text style={[styles.toggleText, !useMetric && styles.toggleTextActive]}>Feet</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Use meters"
+              accessibilityState={{ selected: useMetric }}
               style={[styles.toggleButton, useMetric && styles.toggleActive]}
               onPress={() => void updateUnitPreference(true)}
             >
               <Text style={[styles.toggleText, useMetric && styles.toggleTextActive]}>Meters</Text>
             </TouchableOpacity>
           </View>
+        </View>
 
+        <View
+          style={[
+            styles.inputMethodContent,
+            isWideLayout && styles.wideInputMethodContent,
+            { display: inputMethod === 'manual' ? 'flex' : 'none' },
+          ]}
+        >
+        <ScrollView
+          style={[styles.scrollView, isWideLayout && styles.wideScrollView]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isWideLayout && styles.wideScrollContent,
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Input Form */}
-          <View style={styles.formContainer}>
-            <View style={styles.detailsCard}>
-              <Text style={styles.sectionTitle}>
+          <View style={[styles.formContainer, isWideLayout && styles.wideFormContainer]}>
+            <View
+              ref={rampDetailsGuideTarget.ref}
+              onLayout={rampDetailsGuideTarget.onLayout}
+              collapsable={false}
+              style={[styles.detailsCard, isWideLayout && styles.wideDetailsCard]}
+            >
+              <Text style={[styles.sectionTitle, isWideLayout && styles.wideSectionTitle]}>
                 <Ionicons name="construct" size={18} color="#A6D608" /> Ramp Details
               </Text>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Ramp Height ({distanceUnit}) <Text style={styles.optional}>(optional)</Text></Text>
+              <View style={[isWideLayout && styles.wideInputRow]}>
+              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
+                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Ramp Angle (degrees) <Text style={styles.required}>*</Text></Text>
                 <TextInput
-                  style={[styles.input, focusedField === 'rampHeight' && styles.inputFocused]}
-                  value={rampHeight}
-                  onChangeText={setRampHeight}
-                  onFocus={() => setFocusedField('rampHeight')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder={`e.g., ${useMetric ? '1.5' : '5'}`}
-                  placeholderTextColor="#9AADB0"
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Ramp Angle (degrees) <Text style={styles.required}>*</Text></Text>
-                <TextInput
-                  style={[styles.input, styles.requiredInput, focusedField === 'rampAngle' && styles.inputFocused]}
+                  style={[
+                    styles.input,
+                    isWideLayout && styles.wideInput,
+                    styles.requiredInput,
+                    focusedField === 'rampAngle' && styles.inputFocused,
+                  ]}
                   value={rampAngle}
                   onChangeText={setRampAngle}
                   onFocus={() => setFocusedField('rampAngle')}
@@ -1271,16 +1244,32 @@ export default function Index() {
                   keyboardType="decimal-pad"
                 />
               </View>
+
+              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
+                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Ramp Height ({distanceUnit}) <Text style={styles.optional}>(optional)</Text></Text>
+                <TextInput
+                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'rampHeight' && styles.inputFocused]}
+                  value={rampHeight}
+                  onChangeText={setRampHeight}
+                  onFocus={() => setFocusedField('rampHeight')}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder={`e.g., ${useMetric ? '1.5' : '5'}`}
+                  placeholderTextColor="#9AADB0"
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              </View>
             </View>
 
-            <View style={styles.detailsCard}>
-              <Text style={styles.sectionTitle}>
+            <View style={[styles.detailsCard, isWideLayout && styles.wideDetailsCard]}>
+              <Text style={[styles.sectionTitle, isWideLayout && styles.wideSectionTitle]}>
                 <Ionicons name="resize" size={18} color="#A6D608" /> Jump Details
               </Text>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Gap Distance ({distanceUnit}) <Text style={styles.required}>*</Text></Text>
+              <View style={[isWideLayout && styles.wideInputRow]}>
+              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
+                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Gap Distance ({distanceUnit}) <Text style={styles.required}>*</Text></Text>
                 <TextInput
-                  style={[styles.input, focusedField === 'gapDistance' && styles.inputFocused]}
+                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'gapDistance' && styles.inputFocused]}
                   value={gapDistance}
                   onChangeText={setGapDistance}
                   onFocus={() => setFocusedField('gapDistance')}
@@ -1291,10 +1280,10 @@ export default function Index() {
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Landing Height Diff ({distanceUnit}) <Text style={styles.optional}>(optional, - if lower)</Text></Text>
+              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
+                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Landing Height Diff ({distanceUnit}) <Text style={styles.optional}>(optional, - if lower)</Text></Text>
                 <TextInput
-                  style={[styles.input, focusedField === 'landingHeight' && styles.inputFocused]}
+                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'landingHeight' && styles.inputFocused]}
                   value={landingHeight}
                   onChangeText={setLandingHeight}
                   onFocus={() => setFocusedField('landingHeight')}
@@ -1304,21 +1293,23 @@ export default function Index() {
                   keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
                 />
               </View>
+              </View>
             </View>
 
-            <View style={styles.detailsCard}>
-              <Text style={styles.sectionTitle}>
+            <View style={[styles.detailsCard, isWideLayout && styles.wideDetailsCard]}>
+              <Text style={[styles.sectionTitle, isWideLayout && styles.wideSectionTitle]}>
                 <Ionicons name="body" size={18} color="#A6D608" /> Weight Details
               </Text>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Dirt Bike Weight ({weightUnit}) <Text style={styles.required}>*</Text></Text>
+              <View style={[isWideLayout && styles.wideInputRow]}>
+              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
+                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Dirt Bike Weight ({weightUnit}) <Text style={styles.required}>*</Text></Text>
                 {selectedMotorcycle && (
-                  <Text style={styles.helperText}>
+                  <Text style={[styles.helperText, isWideLayout && styles.wideHelperText]}>
                     {selectedMotorcycle.year} {selectedMotorcycle.brand} {selectedMotorcycle.model} profile default. Editable for this calculation.
                   </Text>
                 )}
                 <TextInput
-                  style={[styles.input, focusedField === 'bikeWeight' && styles.inputFocused]}
+                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'bikeWeight' && styles.inputFocused]}
                   value={bikeWeight}
                   onChangeText={setBikeWeight}
                   onFocus={() => setFocusedField('bikeWeight')}
@@ -1329,11 +1320,11 @@ export default function Index() {
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Rider Weight ({weightUnit}) <Text style={styles.required}>*</Text></Text>
-                <Text style={styles.helperText}>Synced from Rider Profile. Editable for this calculation.</Text>
+              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
+                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Rider Weight ({weightUnit}) <Text style={styles.required}>*</Text></Text>
+                <Text style={[styles.helperText, isWideLayout && styles.wideHelperText]}>Synced from Rider Profile. Editable for this calculation.</Text>
                 <TextInput
-                  style={[styles.input, focusedField === 'riderWeight' && styles.inputFocused]}
+                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'riderWeight' && styles.inputFocused]}
                   value={riderWeight}
                   onChangeText={setRiderWeight}
                   onFocus={() => setFocusedField('riderWeight')}
@@ -1343,13 +1334,14 @@ export default function Index() {
                   keyboardType="decimal-pad"
                 />
               </View>
+              </View>
             </View>
           </View>
 
           {/* Action Buttons */}
-          <View style={styles.buttonContainer}>
+          <View style={[styles.buttonContainer, isWideLayout && styles.wideButtonContainer]}>
             <TouchableOpacity
-              style={styles.calculateButton}
+              style={[styles.calculateButton, isWideLayout && styles.wideCalculateButton]}
               onPress={calculateSpeed}
               disabled={isLoading}
             >
@@ -1357,15 +1349,18 @@ export default function Index() {
                 <ActivityIndicator color="#07111E" />
               ) : (
                 <>
-                  <Ionicons name="calculator" size={20} color="#07111E" />
-                  <Text style={styles.calculateButtonText}>Calculate Speed</Text>
+                  <Ionicons name="calculator" size={isWideLayout ? 14 : 20} color="#07111E" />
+                  <Text style={[styles.calculateButtonText, isWideLayout && styles.wideButtonText]}>Calculate Speed</Text>
                 </>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.clearButton} onPress={clearForm}>
-              <Ionicons name="refresh" size={20} color="#A8B5C4" />
-              <Text style={styles.clearButtonText}>Clear</Text>
+            <TouchableOpacity
+              style={[styles.clearButton, isWideLayout && styles.wideClearButton]}
+              onPress={clearForm}
+            >
+              <Ionicons name="refresh" size={isWideLayout ? 13 : 20} color="#A8B5C4" />
+              <Text style={[styles.clearButtonText, isWideLayout && styles.wideButtonText]}>Reset Fields</Text>
             </TouchableOpacity>
           </View>
 
@@ -1602,6 +1597,39 @@ export default function Index() {
             </SafeAreaView>
           </Modal>
         </ScrollView>
+        {isWideLayout && (
+          <View style={styles.trajectoryPreview}>
+            <Text style={styles.previewTitle}>TRAJECTORY PREVIEW</Text>
+            <View style={styles.previewGraph}>
+              <Svg width="100%" height="100%" viewBox="0 0 320 180">
+                <Rect x="1" y="1" width="318" height="178" rx="8" fill="#10232B" stroke="#35515A" />
+                <Line x1="20" y1="126" x2="300" y2="126" stroke="#A8B5C4" strokeDasharray="4 5" opacity="0.35" />
+                <Path d="M 28 126 Q 160 -4 292 126" fill="none" stroke="#A6D608" strokeWidth="4" />
+                <Path d="M 28 126 L 66 101 L 66 126 Z" fill="#A6D608" opacity="0.28" />
+                <Line x1="28" y1="126" x2="66" y2="101" stroke="#D4F66E" strokeWidth="3" />
+                <Rect x="20" y="126" width="58" height="31" fill="#A6D608" opacity="0.14" />
+                <Rect x="244" y="126" width="56" height="31" fill="#A6D608" opacity="0.14" />
+                <Circle cx="160" cy="61" r="4" fill="#D4F66E" />
+                <Circle cx="28" cy="126" r="4" fill="#A6D608" />
+                <Circle cx="292" cy="126" r="4" fill="#A6D608" />
+                <SvgText x="160" y="48" fill="#C2D0CE" fontSize="10" textAnchor="middle">Apex</SvgText>
+                <SvgText x="48" y="144" fill="#C2D0CE" fontSize="9" textAnchor="middle">Takeoff</SvgText>
+                <SvgText x="272" y="144" fill="#C2D0CE" fontSize="9" textAnchor="middle">Landing</SvgText>
+              </Svg>
+            </View>
+            <View style={styles.previewStats}>
+              {['Predicted Speed', 'Predicted Distance', 'Predicted Height', 'Landing Speed'].map((label) => (
+                <View key={label} style={styles.previewStatRow}>
+                  <Text style={styles.previewStatLabel}>{label}</Text>
+                  <Text style={styles.previewStatValue}>—</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.previewHint}>
+              Illustrative path only. Enter your setup and calculate to see estimates.
+            </Text>
+          </View>
+        )}
         </View>
 
         <View
@@ -1805,153 +1833,86 @@ const styles = StyleSheet.create({
   sloganHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 92,
-    paddingTop: 10,
-    paddingBottom: 9,
-    paddingHorizontal: 12,
-    backgroundColor: '#0B1828',
-    borderBottomWidth: 2,
-    borderBottomColor: '#A6D608',
-  },
-  sloganSideSpace: {
-    width: 32,
+    minHeight: 50,
+    paddingVertical: 5,
+    paddingHorizontal: 16,
+    backgroundColor: '#101D2B',
+    borderBottomWidth: 1,
+    borderBottomColor: '#26384B',
   },
   sloganCopy: {
     flex: 1,
-    alignItems: 'center',
-    paddingVertical: 5,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: 'rgba(166, 214, 8, 0.45)',
-    transform: [{ skewX: '-3deg' }],
-  },
-  telemetryEyebrow: {
-    color: '#D4F66E',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginBottom: 2,
-  },
-  telemetryStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    backgroundColor: '#050C14',
-    borderWidth: 1,
-    borderColor: '#26384B',
-    borderLeftColor: '#A6D608',
-    borderLeftWidth: 3,
-    borderRadius: 4,
-  },
-  telemetryCell: {
-    flex: 1,
-    minWidth: 0,
-  },
-  telemetryLabel: {
-    color: '#77879A',
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 3,
-  },
-  telemetryValue: {
-    color: '#D4F66E',
-    fontFamily: 'monospace',
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-    textShadowColor: 'rgba(166, 214, 8, 0.5)',
-    textShadowRadius: 5,
-  },
-  telemetryUnit: {
-    color: '#D4F66E',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  telemetryDivider: {
-    width: 1,
-    height: 27,
-    marginHorizontal: 10,
-    backgroundColor: '#253448',
+    alignItems: 'flex-start',
   },
   instructionsButton: {
-    width: 96,
+    width: 36,
     minHeight: 36,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
     borderWidth: 1,
-    borderColor: '#A6D608',
-    borderRadius: 6,
+    borderColor: '#344357',
+    borderRadius: 10,
     backgroundColor: '#111E2D',
   },
-  instructionsButtonText: {
-    color: '#F5FAF8',
-    fontSize: 11,
-    fontWeight: '700',
-  },
   sloganFirstLine: {
-    color: '#E8EDF2',
-    fontFamily: 'sans-serif-condensed',
-    fontSize: 17,
-    fontStyle: 'italic',
-    fontWeight: '900',
-    letterSpacing: 0.4,
-    textAlign: 'center',
+    color: '#F5FAF8',
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'left',
   },
-  sloganSecondLine: {
+  brandName: {
     color: '#A6D608',
-    fontFamily: 'sans-serif-condensed',
-    fontSize: 25,
-    fontStyle: 'italic',
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    textAlign: 'center',
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 10,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  wideControlsRow: {
+    marginTop: 6,
+    marginBottom: 4,
   },
   inputMethodTabs: {
+    flex: 1,
     flexDirection: 'row',
-    gap: 8,
-    padding: 5,
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 8,
-    borderRadius: 8,
+    gap: 2,
+    padding: 3,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#26384B',
-    backgroundColor: '#0D1A29',
+    backgroundColor: '#0B1828',
   },
   inputMethodTab: {
     flex: 1,
-    minHeight: 52,
-    flexDirection: 'row',
+    minHeight: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 6,
-    borderRadius: 5,
+    paddingHorizontal: 5,
+    borderRadius: 9,
   },
   inputMethodTabActive: {
     backgroundColor: '#A6D608',
   },
   inputMethodTitle: {
     color: '#A8B5C4',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
-  },
-  inputMethodSubtitle: {
-    marginTop: 2,
-    color: '#75869A',
-    fontSize: 10,
+    textAlign: 'center',
   },
   inputMethodTextActive: {
     color: '#07111E',
   },
   inputMethodContent: {
     flex: 1,
+  },
+  wideInputMethodContent: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 10,
   },
   measureContent: {
     flex: 1,
@@ -1961,8 +1922,16 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
+    paddingTop: 6,
+    paddingBottom: 20,
+  },
+  wideScrollView: {
+    flex: 1,
+  },
+  wideScrollContent: {
+    paddingHorizontal: 0,
+    paddingTop: 2,
+    paddingBottom: 8,
   },
   logoWatermarkContainer: {
     position: 'absolute',
@@ -1993,61 +1962,68 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#0D1A29',
-    borderColor: '#2C3B4D',
+    borderColor: '#26384B',
     borderWidth: 1,
-    borderRadius: 22,
-    padding: 4,
-    marginBottom: 14,
-    alignSelf: 'flex-start',
-    gap: 3,
+    borderRadius: 20,
+    padding: 3,
+    marginBottom: 0,
+    gap: 2,
   },
   unitLabel: {
     color: '#A8B5C4',
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: '700',
-    paddingHorizontal: 9,
+    paddingHorizontal: 5,
   },
   toggleButton: {
     flex: 0,
-    minWidth: 78,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    minWidth: 42,
+    minHeight: 28,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: 15,
   },
   toggleActive: {
     backgroundColor: '#A6D608',
-    shadowColor: '#A6D608',
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 3,
   },
   toggleText: {
     color: '#A8B5C4',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 11,
   },
   toggleTextActive: {
     color: '#07111E',
   },
   formContainer: {
-    gap: 12,
+    gap: 10,
     marginBottom: 6,
   },
+  wideFormContainer: {
+    gap: 6,
+  },
   detailsCard: {
-    backgroundColor: '#111E2D',
-    borderColor: '#2B394A',
+    backgroundColor: '#0F1D2D',
+    borderColor: '#26384B',
     borderWidth: 1,
-    borderTopColor: '#536070',
-    borderRadius: 8,
-    padding: 15,
-    paddingTop: 13,
+    borderRadius: 14,
+    padding: 14,
+    paddingTop: 12,
     shadowColor: '#000000',
-    shadowOpacity: 0.28,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 3,
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  wideDetailsCard: {
+    padding: 8,
+    paddingTop: 7,
+    borderRadius: 10,
+  },
+  wideInputRow: {
+    flexDirection: 'row',
+    gap: 6,
   },
   sectionTitle: {
     fontSize: 14,
@@ -2055,19 +2031,33 @@ const styles = StyleSheet.create({
     color: '#E8EDF2',
     letterSpacing: 1,
     textTransform: 'uppercase',
-    marginBottom: 14,
-    paddingBottom: 9,
+    marginBottom: 12,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#293849',
   },
+  wideSectionTitle: {
+    fontSize: 10,
+    letterSpacing: 0.4,
+    marginBottom: 6,
+    paddingBottom: 4,
+  },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 13,
+  },
+  wideInputGroup: {
+    flex: 1,
+    marginBottom: 4,
   },
   label: {
     fontSize: 14,
     color: '#D5DDE6',
     fontWeight: '600',
     marginBottom: 7,
+  },
+  wideLabel: {
+    fontSize: 9,
+    marginBottom: 3,
   },
   required: {
     color: '#A6D608',
@@ -2078,13 +2068,19 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#0A1522',
-    borderRadius: 5,
+    borderRadius: 10,
     paddingHorizontal: 13,
     paddingVertical: 12,
     fontSize: 16,
     color: '#F3F6F9',
     borderWidth: 1,
     borderColor: '#344357',
+  },
+  wideInput: {
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 12,
   },
   inputFocused: {
     borderColor: '#A6D608',
@@ -2106,6 +2102,11 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginBottom: 6,
   },
+  wideHelperText: {
+    fontSize: 8,
+    lineHeight: 10,
+    marginBottom: 3,
+  },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
@@ -2115,6 +2116,29 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 6,
     marginBottom: 16,
+  },
+  wideButtonContainer: {
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  wideCalculateButton: {
+    minHeight: 36,
+    padding: 6,
+    borderRadius: 16,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  wideClearButton: {
+    minHeight: 36,
+    padding: 6,
+    borderRadius: 16,
+    gap: 4,
+  },
+  wideButtonText: {
+    fontSize: 10,
+    letterSpacing: 0,
   },
   calculateButton: {
     flex: 1.65,
@@ -2154,6 +2178,55 @@ const styles = StyleSheet.create({
     color: '#A8B5C4',
     fontSize: 15,
     fontWeight: '700',
+  },
+  trajectoryPreview: {
+    flex: 1,
+    minWidth: 0,
+    backgroundColor: '#0F1D2D',
+    borderColor: '#26384B',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+  },
+  previewTitle: {
+    color: '#D5DDE6',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 7,
+  },
+  previewGraph: {
+    height: 145,
+    minHeight: 110,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  previewStats: {
+    marginTop: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#0A1522',
+  },
+  previewStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  previewStatLabel: {
+    color: '#C2D0CE',
+    fontSize: 10,
+  },
+  previewStatValue: {
+    color: '#D4F66E',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  previewHint: {
+    color: '#9AADB0',
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: 8,
   },
   resultsContainer: {
     backgroundColor: 'rgba(20, 37, 44, 0.76)',

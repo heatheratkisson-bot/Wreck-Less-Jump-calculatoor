@@ -36,12 +36,14 @@ import {
   selectRiderBikeProfile,
 } from '@/lib/appSupport';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
 
 const MAX_SAVED_PROFILES = 3;
 type BikePickerField = 'year' | 'brand' | 'model';
 
 export default function Profile() {
   const router = useRouter();
+  const savedBikesGuideTarget = useBeginnerGuideTarget('profile');
   const { openJumpLog } = useLocalSearchParams<{ openJumpLog?: string }>();
   const [profiles, setProfiles] = useState<SavedBikeProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
@@ -406,7 +408,12 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionHeading}>
+        <View
+          ref={savedBikesGuideTarget.ref}
+          onLayout={savedBikesGuideTarget.onLayout}
+          collapsable={false}
+          style={styles.sectionHeading}
+        >
           <View>
             <Text style={styles.sectionTitle}>Saved bikes</Text>
             <Text style={styles.sectionHint}>{profiles.length} of {MAX_SAVED_PROFILES} free slots used</Text>
