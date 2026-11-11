@@ -1328,155 +1328,112 @@ export default function Index() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Input Form */}
-          <View style={[styles.formContainer, isWideLayout && styles.wideFormContainer]}>
-            <View
-              ref={rampDetailsGuideTarget.ref}
-              onLayout={rampDetailsGuideTarget.onLayout}
-              collapsable={false}
-              style={[styles.detailsCard, isWideLayout && styles.wideDetailsCard]}
-            >
-              <Text style={[styles.sectionTitle, isWideLayout && styles.wideSectionTitle]}>
-                <Ionicons name="construct" size={18} color="#A6D608" /> Ramp Details
-              </Text>
-              <View style={[isWideLayout && styles.wideInputRow]}>
-              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
-                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Ramp Angle (degrees) <Text style={styles.required}>*</Text></Text>
+          {currentInputStep && (
+            <View style={styles.inputWizard}>
+              <View style={styles.inputWizardProgress}>
+                <Text style={styles.inputWizardStepText}>
+                  Step {inputStep + 1} of {inputSteps.length}
+                </Text>
+                <View
+                  accessibilityRole="progressbar"
+                  accessibilityValue={{ min: 1, max: inputSteps.length, now: inputStep + 1 }}
+                  style={styles.inputWizardProgressTrack}
+                >
+                  <View
+                    style={[
+                      styles.inputWizardProgressFill,
+                      { width: `${((inputStep + 1) / inputSteps.length) * 100}%` },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              <View
+                ref={inputStep === 0 ? rampDetailsGuideTarget.ref : undefined}
+                onLayout={inputStep === 0 ? rampDetailsGuideTarget.onLayout : undefined}
+                collapsable={false}
+                style={styles.inputWizardCard}
+              >
+                <Ionicons name={currentInputStep.icon} size={30} color="#A6D608" />
+                <Text style={styles.inputWizardTitle}>{currentInputStep.title}</Text>
+                <Text style={styles.inputWizardDescription}>
+                  {currentInputStep.required ? 'Required for your calculation' : 'Optional'}
+                </Text>
+                <Text style={styles.inputWizardLabel}>
+                  {currentInputStep.label}
+                  {currentInputStep.required && <Text style={styles.required}> *</Text>}
+                </Text>
                 <TextInput
+                  key={currentInputStep.key}
+                  accessibilityLabel={currentInputStep.label}
                   style={[
-                    styles.input,
-                    isWideLayout && styles.wideInput,
-                    styles.requiredInput,
-                    focusedField === 'rampAngle' && styles.inputFocused,
+                    styles.inputWizardInput,
+                    focusedField === currentInputStep.key && styles.inputFocused,
                   ]}
-                  value={rampAngle}
-                  onChangeText={setRampAngle}
-                  onFocus={() => setFocusedField('rampAngle')}
+                  value={currentInputStep.value}
+                  onChangeText={currentInputStep.onChangeText}
+                  onFocus={() => setFocusedField(currentInputStep.key)}
                   onBlur={() => setFocusedField(null)}
-                  placeholder="e.g., 30"
+                  placeholder={currentInputStep.placeholder}
                   placeholderTextColor="#9AADB0"
-                  keyboardType="decimal-pad"
+                  keyboardType={currentInputStep.keyboardType}
+                  returnKeyType="done"
+                  autoFocus
                 />
-              </View>
-
-              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
-                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Ramp Height ({distanceUnit}) <Text style={styles.optional}>(optional)</Text></Text>
-                <TextInput
-                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'rampHeight' && styles.inputFocused]}
-                  value={rampHeight}
-                  onChangeText={setRampHeight}
-                  onFocus={() => setFocusedField('rampHeight')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder={`e.g., ${useMetric ? '1.5' : '5'}`}
-                  placeholderTextColor="#9AADB0"
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              </View>
-            </View>
-
-            <View style={[styles.detailsCard, isWideLayout && styles.wideDetailsCard]}>
-              <Text style={[styles.sectionTitle, isWideLayout && styles.wideSectionTitle]}>
-                <Ionicons name="resize" size={18} color="#A6D608" /> Jump Details
-              </Text>
-              <View style={[isWideLayout && styles.wideInputRow]}>
-              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
-                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Gap Distance ({distanceUnit}) <Text style={styles.required}>*</Text></Text>
-                <TextInput
-                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'gapDistance' && styles.inputFocused]}
-                  value={gapDistance}
-                  onChangeText={setGapDistance}
-                  onFocus={() => setFocusedField('gapDistance')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder={`e.g., ${useMetric ? '15' : '50'}`}
-                  placeholderTextColor="#9AADB0"
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
-                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Landing Height Diff ({distanceUnit}) <Text style={styles.optional}>(optional, - if lower)</Text></Text>
-                <TextInput
-                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'landingHeight' && styles.inputFocused]}
-                  value={landingHeight}
-                  onChangeText={setLandingHeight}
-                  onFocus={() => setFocusedField('landingHeight')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder="e.g., -3"
-                  placeholderTextColor="#9AADB0"
-                  keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
-                />
-              </View>
-              </View>
-            </View>
-
-            <View style={[styles.detailsCard, isWideLayout && styles.wideDetailsCard]}>
-              <Text style={[styles.sectionTitle, isWideLayout && styles.wideSectionTitle]}>
-                <Ionicons name="body" size={18} color="#A6D608" /> Weight Details
-              </Text>
-              <View style={[isWideLayout && styles.wideInputRow]}>
-              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
-                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Dirt Bike Weight ({weightUnit}) <Text style={styles.required}>*</Text></Text>
-                {selectedMotorcycle && (
-                  <Text style={[styles.helperText, isWideLayout && styles.wideHelperText]}>
-                    {selectedMotorcycle.year} {selectedMotorcycle.brand} {selectedMotorcycle.model} profile default. Editable for this calculation.
-                  </Text>
+                {!!currentInputStep.helperText && (
+                  <Text style={styles.inputWizardHelper}>{currentInputStep.helperText}</Text>
                 )}
-                <TextInput
-                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'bikeWeight' && styles.inputFocused]}
-                  value={bikeWeight}
-                  onChangeText={setBikeWeight}
-                  onFocus={() => setFocusedField('bikeWeight')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder={`e.g., ${useMetric ? '100' : '220'}`}
-                  placeholderTextColor="#9AADB0"
-                  keyboardType="decimal-pad"
-                />
               </View>
 
-              <View style={[styles.inputGroup, isWideLayout && styles.wideInputGroup]}>
-                <Text style={[styles.label, isWideLayout && styles.wideLabel]}>Rider Weight ({weightUnit}) <Text style={styles.required}>*</Text></Text>
-                <Text style={[styles.helperText, isWideLayout && styles.wideHelperText]}>Synced from Rider Profile. Editable for this calculation.</Text>
-                <TextInput
-                  style={[styles.input, isWideLayout && styles.wideInput, focusedField === 'riderWeight' && styles.inputFocused]}
-                  value={riderWeight}
-                  onChangeText={setRiderWeight}
-                  onFocus={() => setFocusedField('riderWeight')}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder={`e.g., ${useMetric ? '75' : '165'}`}
-                  placeholderTextColor="#9AADB0"
-                  keyboardType="decimal-pad"
-                />
+              <View style={styles.inputWizardSecondaryActions}>
+                {inputStep > 0 ? (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setFocusedField(null);
+                      setInputStep((step) => Math.max(step - 1, 0));
+                    }}
+                    style={styles.inputWizardBackButton}
+                  >
+                    <Ionicons name="arrow-back" size={18} color="#C2D0CE" />
+                    <Text style={styles.inputWizardBackText}>Back</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View />
+                )}
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={clearForm}
+                  style={styles.inputWizardResetButton}
+                >
+                  <Ionicons name="refresh" size={16} color="#A8B5C4" />
+                  <Text style={styles.inputWizardResetText}>Reset Fields</Text>
+                </TouchableOpacity>
               </View>
-              </View>
+
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={inputStep === inputSteps.length - 1 ? calculateSpeed : advanceInputStep}
+                disabled={isLoading}
+                style={styles.inputWizardNextButton}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#07111E" />
+                ) : (
+                  <>
+                    <Text style={styles.inputWizardNextText}>
+                      {inputStep === inputSteps.length - 1 ? 'How Fast?' : 'Next'}
+                    </Text>
+                    <Ionicons
+                      name={inputStep === inputSteps.length - 1 ? 'calculator' : 'arrow-forward'}
+                      size={20}
+                      color="#07111E"
+                    />
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
-          </View>
-
-          {/* Action Buttons */}
-          <View style={[styles.buttonContainer, isWideLayout && styles.wideButtonContainer]}>
-            <TouchableOpacity
-              style={[styles.calculateButton, isWideLayout && styles.wideCalculateButton]}
-              onPress={calculateSpeed}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#07111E" />
-              ) : (
-                <>
-                  <Ionicons name="calculator" size={isWideLayout ? 14 : 20} color="#07111E" />
-                  <Text style={[styles.calculateButtonText, isWideLayout && styles.wideButtonText]}>Calculate Speed</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.clearButton, isWideLayout && styles.wideClearButton]}
-              onPress={clearForm}
-            >
-              <Ionicons name="refresh" size={isWideLayout ? 13 : 20} color="#A8B5C4" />
-              <Text style={[styles.clearButtonText, isWideLayout && styles.wideButtonText]}>Reset Fields</Text>
-            </TouchableOpacity>
-          </View>
+          )}
 
           {/* Results page */}
           <Modal
@@ -2113,6 +2070,131 @@ const styles = StyleSheet.create({
   formContainer: {
     gap: 10,
     marginBottom: 6,
+  },
+  inputWizard: {
+    flex: 1,
+    gap: 14,
+    paddingTop: 10,
+    paddingBottom: 16,
+  },
+  inputWizardProgress: {
+    gap: 8,
+  },
+  inputWizardStepText: {
+    color: '#A8B5C4',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  inputWizardProgressTrack: {
+    height: 6,
+    overflow: 'hidden',
+    borderRadius: 3,
+    backgroundColor: '#26384B',
+  },
+  inputWizardProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: '#A6D608',
+  },
+  inputWizardCard: {
+    flex: 1,
+    minHeight: 270,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0F1D2D',
+    borderColor: '#26384B',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 22,
+  },
+  inputWizardTitle: {
+    marginTop: 10,
+    color: '#F5FAF8',
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  inputWizardDescription: {
+    marginTop: 5,
+    marginBottom: 26,
+    color: '#9AADB0',
+    fontSize: 13,
+  },
+  inputWizardLabel: {
+    alignSelf: 'stretch',
+    marginBottom: 8,
+    color: '#D5DDE6',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  inputWizardInput: {
+    alignSelf: 'stretch',
+    minHeight: 60,
+    backgroundColor: '#0A1522',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 24,
+    color: '#F3F6F9',
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: '#A6D608',
+  },
+  inputWizardHelper: {
+    alignSelf: 'stretch',
+    marginTop: 10,
+    color: '#9AADB0',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  inputWizardSecondaryActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 42,
+  },
+  inputWizardBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingRight: 12,
+  },
+  inputWizardBackText: {
+    color: '#C2D0CE',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  inputWizardResetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingLeft: 12,
+  },
+  inputWizardResetText: {
+    color: '#A8B5C4',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  inputWizardNextButton: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#A6D608',
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    marginBottom: 8,
+  },
+  inputWizardNextText: {
+    color: '#07111E',
+    fontSize: 17,
+    fontWeight: '900',
   },
   wideFormContainer: {
     gap: 6,
