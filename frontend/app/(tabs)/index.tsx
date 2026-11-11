@@ -10,7 +10,6 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
-  Dimensions,
   Modal,
   Share,
   Image,
@@ -27,7 +26,7 @@ import MeasureScreen from './measure';
 import type { MeasureScreenHandle, Measurements } from './measure';
 import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
 import type { MotorcycleModel } from '@/lib/motorcycleData';
-import Svg, { Path, Circle, Ellipse, Line, Text as SvgText, G, Polygon, Rect } from 'react-native-svg';
+import Svg, { Path, Circle, Line, Text as SvgText, G, Polygon, Rect } from 'react-native-svg';
 import * as Location from 'expo-location';
 import {
   calculateJumpLocally,
@@ -53,8 +52,6 @@ import {
   setLastNearbyAlertSentAt,
 } from '@/lib/appSupport';
 
-const { width } = Dimensions.get('window');
-
 export default function Index() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isWideLayout = windowWidth >= 400 && windowWidth > windowHeight;
@@ -75,17 +72,24 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [showResultsPage, setShowResultsPage] = useState(false);
+  const [pendingGhostTrajectoryParams, setPendingGhostTrajectoryParams] = useState<{
+    speedMph: string;
+    gapFeet: string;
+    rampAngle: string;
+    rampHeightFeet: string;
+    landingHeightFeet: string;
+  } | null>(null);
   const [useMetric, setUseMetric] = useState(false);
   const [inputMethod, setInputMethod] = useState<'manual' | 'measure'>('manual');
   const measureScreenRef = useRef<MeasureScreenHandle>(null);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const [isPacingActive, setIsPacingActive] = useState(false);
   const [pacingSpeed, setPacingSpeed] = useState<number | null>(null);
   const [pacingStatus, setPacingStatus] = useState('');
   const pacingSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const pacingRequestedRef = useRef(false);
-  const pacingScreenFocusedRef = useRef(false);
   const lastPacingAnnouncementRef = useRef<{ status: string; timestamp: number } | null>(null);
   const lastPacingStatusRef = useRef<string | null>(null);
   const pacingConfigRef = useRef<{
@@ -192,9 +196,7 @@ export default function Index() {
 
   useFocusEffect(
     useCallback(() => {
-      pacingScreenFocusedRef.current = true;
       return () => {
-        pacingScreenFocusedRef.current = false;
         pacingRequestedRef.current = false;
         pacingSubscriptionRef.current?.remove();
         pacingSubscriptionRef.current = null;
@@ -209,6 +211,25 @@ export default function Index() {
       };
     }, [])
   );
+
+  useEffect(() => {
+    if (
+      !pendingGhostTrajectoryParams ||
+      showResultsPage ||
+      Platform.OS === 'ios'
+    ) {
+      return;
+    }
+    const timeout = setTimeout(() => {
+      router.push({
+        pathname: '/ghost-ar',
+        params: pendingGhostTrajectoryParams,
+      });
+      setPendingGhostTrajectoryParams(null);
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [pendingGhostTrajectoryParams, router, showResultsPage]);
 
   const handlePacingLocation = useCallback((location: Location.LocationObject) => {
     const config = pacingConfigRef.current;
@@ -260,12 +281,12 @@ export default function Index() {
     setPacingStatus('Waiting for GPS speed…');
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (!pacingRequestedRef.current || !pacingScreenFocusedRef.current) {
+      if (!pacingRequestedRef.current) {
         return;
       }
       if (permission.status !== 'granted') {
         pacingRequestedRef.current = false;
-        setPacingStatus('');
+        setPacingStatus('Location permission is required for speed guidance.');
         Alert.alert(
           'Location permission needed',
           'Allow location access while using the app to hear live speed guidance.'
@@ -281,7 +302,7 @@ export default function Index() {
         },
         handlePacingLocation
       );
-      if (!pacingRequestedRef.current || !pacingScreenFocusedRef.current) {
+      if (!pacingRequestedRef.current) {
         subscription.remove();
         return;
       }
@@ -289,12 +310,12 @@ export default function Index() {
       pacingSubscriptionRef.current = subscription;
       setIsPacingActive(true);
     } catch (error) {
-      if (!pacingRequestedRef.current || !pacingScreenFocusedRef.current) {
+      if (!pacingRequestedRef.current) {
         return;
       }
       pacingRequestedRef.current = false;
       console.error('Could not start live speed guidance:', error);
-      setPacingStatus('');
+      setPacingStatus('Could not start speed guidance. Check location settings and try again.');
       Alert.alert('Could not start speed guidance', 'Check location settings and try again.');
     }
   };
@@ -857,12 +878,18 @@ export default function Index() {
   const renderTrajectory = () => {
     if (!result || !result.trajectory_points || result.trajectory_points.length === 0) return null;
 
-    const svgWidth = width - 40;
-    const svgHeight = 180;
-    const padding = 30;
+    const svgWidth = Math.max(windowWidth - 102, 220);
+    const svgHeight = 228;
+    const plotLeft = 46;
+    const plotRight = 12;
+    const plotTop = 14;
+    const plotBottom = 50;
 
     const points = result.trajectory_points;
-    const maxX = Math.max(...points.map((point) => point.x));
+    const gapFeet =
+      result.input_data.unit_system === 'metric'
+        ? result.input_data.gap_distance * 3.28084
+        : result.input_data.gap_distance;
     const landingHeightFeet =
       result.input_data.unit_system === 'metric'
         ? (result.input_data.landing_height || 0) * 3.28084
@@ -875,49 +902,39 @@ export default function Index() {
     const rampLength =
       rampHeightFeet > 0 && Math.tan(rampAngleRad) > 0
         ? rampHeightFeet / Math.tan(rampAngleRad)
-        : maxX * 0.12;
+        : gapFeet * 0.12;
     const visibleRampHeight = rampHeightFeet || rampLength * Math.tan(rampAngleRad);
-    const landingX = rampLength + maxX;
-    const sceneEndX = landingX + maxX * 0.16;
-    const landingRun = maxX * 0.12;
+    const landingX = rampLength + gapFeet;
+    const landingRun = gapFeet * 0.12;
+    const landingRampEndX = landingX + landingRun;
     const landingWorldY = visibleRampHeight + landingHeightFeet;
-    const landingApproachStartX = landingX - landingRun;
-    const landingApproachStartY = landingWorldY - landingRun * Math.tan(rampAngleRad);
+    const landingRampEndY = landingWorldY - landingRun * Math.tan(rampAngleRad);
+    const sceneEndX = landingRampEndX + gapFeet * 0.04;
     const flightPoints = points.map((point) => ({
       x: rampLength + point.x,
       y: visibleRampHeight + point.y,
     }));
-    const flightMaxY = Math.max(...flightPoints.map((point) => point.y));
+    const apexPoint = flightPoints.reduce((highest, point) => point.y > highest.y ? point : highest);
+    const flightMaxY = apexPoint.y;
     const maxY = Math.max(flightMaxY, visibleRampHeight, landingWorldY);
-    const minY = Math.min(...flightPoints.map((point) => point.y), 0, landingApproachStartY);
+    const minY = Math.min(...flightPoints.map((point) => point.y), 0, landingRampEndY);
 
-    const scaleX = (svgWidth - padding * 2) / sceneEndX;
-    const scaleY = (svgHeight - padding * 2) / Math.max(maxY - minY, 1);
+    const scaleX = (svgWidth - plotLeft - plotRight) / sceneEndX;
+    const scaleY = (svgHeight - plotTop - plotBottom) / Math.max(maxY - minY, 1);
 
-    const transformX = (x: number) => padding + x * scaleX;
-    const transformY = (y: number) => svgHeight - padding - (y - minY) * scaleY;
-    const createSmoothPath = (pathPoints: typeof flightPoints) => {
-      if (pathPoints.length < 3) {
-        return pathPoints
-          .map((point, index) => `${index === 0 ? 'M' : 'L'} ${transformX(point.x)} ${transformY(point.y)}`)
-          .join(' ');
-      }
-
-      let path = `M ${transformX(pathPoints[0].x)} ${transformY(pathPoints[0].y)}`;
-      for (let index = 1; index < pathPoints.length - 1; index += 1) {
-        const point = pathPoints[index];
-        const nextPoint = pathPoints[index + 1];
-        const midpointX = (point.x + nextPoint.x) / 2;
-        const midpointY = (point.y + nextPoint.y) / 2;
-        path += ` Q ${transformX(point.x)} ${transformY(point.y)} ${transformX(midpointX)} ${transformY(midpointY)}`;
-      }
-
-      const lastPoint = pathPoints[pathPoints.length - 1];
-      const previousPoint = pathPoints[pathPoints.length - 2];
-      path += ` Q ${transformX(previousPoint.x)} ${transformY(previousPoint.y)} ${transformX(lastPoint.x)} ${transformY(lastPoint.y)}`;
-      return path;
+    const transformX = (x: number) => plotLeft + x * scaleX;
+    const transformY = (y: number) => svgHeight - plotBottom - (y - minY) * scaleY;
+    const displayDistance = (feet: number) => feet * (useMetric ? 0.3048 : 1);
+    const formatDistance = (feet: number) => {
+      const value = displayDistance(feet);
+      return value.toFixed(Math.abs(value) < 10 ? 1 : 0);
     };
-    const pathData = createSmoothPath(flightPoints);
+    const createTrajectoryPath = (pathPoints: typeof flightPoints) => {
+      return pathPoints
+        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${transformX(point.x)} ${transformY(point.y)}`)
+        .join(' ');
+    };
+    const pathData = createTrajectoryPath(flightPoints);
 
     // Current bike position based on animation
     const progressIndex = animationProgress * (points.length - 1);
@@ -932,16 +949,24 @@ export default function Index() {
     };
     const orientationStart = flightPoints[Math.max(0, currentIndex - 1)] || segmentStart;
     const orientationEnd = flightPoints[Math.min(flightPoints.length - 1, currentIndex + 1)] || segmentEnd;
-    const bikeRotation =
-      (Math.atan2(
-        transformY(orientationEnd.y) - transformY(orientationStart.y),
-        transformX(orientationEnd.x) - transformX(orientationStart.x)
-      ) *
-        180) /
-      Math.PI;
-    const animatedPath = createSmoothPath(flightPoints
+    const animatedPath = createTrajectoryPath(flightPoints
       .slice(0, currentIndex + 1)
       .concat(currentPoint));
+    const simulatedTime = result.flight_time_seconds * animationProgress;
+    const angleRadians = (result.input_data.ramp_angle * Math.PI) / 180;
+    const horizontalVelocityFps = result.required_speed_fps * Math.cos(angleRadians);
+    const verticalVelocityFps = result.required_speed_fps * Math.sin(angleRadians) - 32.174 * simulatedTime;
+    const simulatedSpeedFps = Math.hypot(horizontalVelocityFps, verticalVelocityFps);
+    const simulatedSpeed = useMetric ? simulatedSpeedFps * 1.09728 : simulatedSpeedFps * 0.681818;
+    const tangentX = orientationEnd.x - orientationStart.x;
+    const tangentY = orientationEnd.y - orientationStart.y;
+    const tangentLength = Math.hypot(tangentX, tangentY) || 1;
+    const vectorScale = (sceneEndX * 0.08) / tangentLength;
+    const bikeAngleDegrees = Math.atan2(-tangentY * scaleY, tangentX * scaleX) * (180 / Math.PI);
+    const velocityVectorEnd = {
+      x: currentPoint.x + tangentX * vectorScale,
+      y: currentPoint.y + tangentY * vectorScale,
+    };
 
     return (
       <View style={styles.trajectoryContainer}>
@@ -955,66 +980,107 @@ export default function Index() {
           </TouchableOpacity>
         </View>
 
-        <Svg width={svgWidth} height={svgHeight} style={styles.svg}>
-          <Rect
-            x="0"
-            y="0"
-            width={svgWidth}
-            height={svgHeight}
-            rx="12"
-            fill="#10232B"
-          />
-          <Circle
-            cx={svgWidth - 54}
-            cy="42"
-            r="20"
-            fill="#E8B86D"
-            opacity={0.18}
-          />
-          <Circle
-            cx={svgWidth - 54}
-            cy="42"
-            r="10"
-            fill="#E8B86D"
-            opacity={0.82}
-          />
-          {[0, 1, 2, 3, 4, 5].map((star) => (
-            <Circle
-              key={`star-${star}`}
-              cx={22 + star * 53}
-              cy={20 + ((star * 29) % 65)}
-              r={star % 2 === 0 ? 1.5 : 1}
-              fill="#D9E8E5"
-              opacity={0.6}
-            />
-          ))}
-          {[1, 2, 3].map((gridLine) => (
-            <Line
-              key={`grid-${gridLine}`}
-              x1={padding + ((svgWidth - padding * 2) * gridLine) / 4}
-              y1={padding}
-              x2={padding + ((svgWidth - padding * 2) * gridLine) / 4}
-              y2={svgHeight - padding}
-              stroke="#D9E8E5"
-              strokeWidth="1"
-              opacity={0.06}
-            />
-          ))}
+        <View style={styles.simulationSpeedPanel}>
+          <View style={styles.simulationSpeedCard}>
+            <Text style={styles.simulationSpeedLabel}>REQUIRED SPEED</Text>
+            <Text style={styles.simulationSpeedValue}>
+              {useMetric ? result.required_speed_kph : result.required_speed_mph}
+              <Text style={styles.simulationSpeedUnit}> {speedUnit}</Text>
+            </Text>
+          </View>
+          <View style={styles.simulationSpeedCard}>
+            <Text style={styles.simulationSpeedLabel}>RECOMMENDED SPEED</Text>
+            <Text style={styles.simulationSpeedValue}>
+              {useMetric ? result.safety_speed_kph : result.safety_speed_mph}
+              <Text style={styles.simulationSpeedUnit}> {speedUnit}</Text>
+            </Text>
+          </View>
+        </View>
 
+        <Svg width={svgWidth} height={svgHeight} style={styles.svg}>
+          <Rect x="0" y="0" width={svgWidth} height={svgHeight} rx="10" fill="#091720" />
           <Path
-            d={`M ${padding} ${transformY(0)} L ${transformX(0)} ${transformY(0)} L ${transformX(0)} ${svgHeight} L ${padding} ${svgHeight} Z`}
-            fill="#193138"
+            d={`M ${transformX(0)} ${transformY(0)} L ${transformX(rampLength)} ${transformY(0)} L ${transformX(rampLength)} ${svgHeight - plotBottom} L ${transformX(0)} ${svgHeight - plotBottom} Z`}
+            fill="#18332C"
+            opacity={0.65}
           />
           <Path
-            d={`M ${transformX(landingApproachStartX)} ${transformY(landingApproachStartY)} L ${transformX(landingX)} ${transformY(landingWorldY)} L ${transformX(sceneEndX)} ${transformY(landingWorldY)} L ${transformX(sceneEndX)} ${svgHeight} L ${transformX(landingApproachStartX)} ${svgHeight} Z`}
-            fill="#193138"
+            d={`M ${transformX(landingX)} ${transformY(landingWorldY)} L ${transformX(landingRampEndX)} ${transformY(landingRampEndY)} L ${transformX(landingRampEndX)} ${svgHeight - plotBottom} L ${transformX(landingX)} ${svgHeight - plotBottom} Z`}
+            fill="#173329"
+            opacity={0.65}
           />
+          {[0, 1, 2, 3, 4].map((tick) => {
+            const fraction = tick / 4;
+            const x = plotLeft + (svgWidth - plotLeft - plotRight) * fraction;
+            const y = plotTop + (svgHeight - plotTop - plotBottom) * fraction;
+            const elevation = minY + (maxY - minY) * (1 - fraction);
+            const distance = sceneEndX * fraction;
+            return (
+              <G key={`axis-${tick}`}>
+                <Line
+                  x1={x}
+                  y1={plotTop}
+                  x2={x}
+                  y2={svgHeight - plotBottom}
+                  stroke="#79919C"
+                  strokeWidth="1"
+                  opacity={tick === 0 ? 0.3 : 0.16}
+                />
+                <Line
+                  x1={plotLeft}
+                  y1={y}
+                  x2={svgWidth - plotRight}
+                  y2={y}
+                  stroke="#79919C"
+                  strokeWidth="1"
+                  opacity={tick === 0 ? 0.3 : 0.16}
+                />
+                <SvgText
+                  x={x}
+                  y={svgHeight - plotBottom + 12}
+                  fill="#91A7B0"
+                  fontSize="8"
+                  textAnchor="middle"
+                >
+                  {formatDistance(distance)}
+                </SvgText>
+                <SvgText
+                  x={plotLeft - 6}
+                  y={y + 3}
+                  fill="#91A7B0"
+                  fontSize="8"
+                  textAnchor="end"
+                >
+                  {formatDistance(elevation)}
+                </SvgText>
+              </G>
+            );
+          })}
+          <SvgText
+            x="12"
+            y={(plotTop + svgHeight - plotBottom) / 2}
+            fill="#91A7B0"
+            fontSize="8"
+            textAnchor="middle"
+            transform={`rotate(-90 12 ${(plotTop + svgHeight - plotBottom) / 2})`}
+          >
+            ELEVATION ({distanceUnit})
+          </SvgText>
+          <SvgText
+            x={(plotLeft + svgWidth - plotRight) / 2}
+            y={svgHeight - 3}
+            fill="#91A7B0"
+            fontSize="8"
+            textAnchor="middle"
+          >
+            DISTANCE ({distanceUnit})
+          </SvgText>
 
           {/* Takeoff ramp */}
           <Polygon
             points={`${transformX(0)},${transformY(0)} ${transformX(rampLength)},${transformY(visibleRampHeight)} ${transformX(rampLength)},${transformY(0)}`}
             fill="#A6D608"
-            opacity={0.22}
+            opacity={0.28}
           />
           <Line
             x1={transformX(0)}
@@ -1029,152 +1095,167 @@ export default function Index() {
             y1={transformY(0) - 7}
             x2={transformX(rampLength) - 3}
             y2={transformY(visibleRampHeight) + 2}
-            stroke="#A6D608"
+            stroke="#D4F66E"
             strokeWidth="1"
-            opacity={0.5}
+            opacity={0.7}
           />
 
-          {/* Landing ramp meets the calculated landing elevation. */}
-          <Line
-            x1={transformX(landingApproachStartX)}
-            y1={transformY(landingApproachStartY)}
-            x2={transformX(landingX)}
-            y2={transformY(landingWorldY)}
-            stroke="#8BD6A7"
-            strokeWidth="3"
-          />
+          {/* The receiving ramp slopes down away from the jump. */}
           <Line
             x1={transformX(landingX)}
             y1={transformY(landingWorldY)}
-            x2={transformX(sceneEndX)}
-            y2={transformY(landingWorldY)}
+            x2={transformX(landingRampEndX)}
+            y2={transformY(landingRampEndY)}
             stroke="#8BD6A7"
-            strokeWidth="3"
+            strokeWidth="4"
           />
+          <SvgText
+            x={transformX(rampLength)}
+            y={Math.max(plotTop + 10, transformY(visibleRampHeight) - 7)}
+            fill="#D4F66E"
+            fontSize="8"
+            fontWeight="700"
+            textAnchor="middle"
+          >
+            TAKEOFF
+          </SvgText>
+          <SvgText
+            x={transformX(landingX) + 2}
+            y={Math.max(plotTop + 10, transformY(landingWorldY) - 7)}
+            fill="#8BD6A7"
+            fontSize="8"
+            fontWeight="700"
+            textAnchor="middle"
+          >
+            LANDING
+          </SvgText>
 
           {/* Gap indicator */}
           <Line
             x1={transformX(rampLength)}
-            y1={transformY(0) + 15}
+            y1={svgHeight - plotBottom + 17}
             x2={transformX(landingX)}
-            y2={transformY(0) + 15}
-            stroke="#C2D0CE"
+            y2={svgHeight - plotBottom + 17}
+            stroke="#91A7B0"
             strokeWidth="1"
-            strokeDasharray="5,5"
+          />
+          <Line
+            x1={transformX(rampLength)}
+            y1={svgHeight - plotBottom + 14}
+            x2={transformX(rampLength)}
+            y2={svgHeight - plotBottom + 20}
+            stroke="#91A7B0"
+            strokeWidth="1"
+          />
+          <Line
+            x1={transformX(landingX)}
+            y1={svgHeight - plotBottom + 14}
+            x2={transformX(landingX)}
+            y2={svgHeight - plotBottom + 20}
+            stroke="#91A7B0"
+            strokeWidth="1"
           />
           <SvgText
             x={(transformX(rampLength) + transformX(landingX)) / 2}
-            y={transformY(0) + 28}
-            fill="#C2D0CE"
-            fontSize="10"
+            y={svgHeight - plotBottom + 30}
+            fill="#F5FAF8"
+            fontSize="8"
+            fontWeight="700"
             textAnchor="middle"
           >
-            {result.input_data.gap_distance} {distanceUnit}
+            GAP {result.input_data.gap_distance} {distanceUnit}
           </SvgText>
 
-          {/* Trajectory path */}
           <Path
             d={pathData}
-            stroke="#82B6FF"
-            strokeWidth="2"
+            stroke="#4AAEFF"
+            strokeWidth="2.5"
             fill="none"
-            strokeDasharray="3,7"
             strokeLinecap="round"
-            opacity={0.55}
+            strokeLinejoin="round"
           />
 
-          {/* The glow and solid trail track the same calculated trajectory. */}
-          {animationProgress > 0 && (
-            <>
-              <Path
-                d={animatedPath}
-                stroke="#A6D608"
-                strokeWidth="10"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity={0.14}
-              />
-              <Path
-                d={animatedPath}
-                stroke="#D4F66E"
-                strokeWidth="3"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </>
-          )}
-
-          {/* Max height indicator */}
+          <Path
+            d={animatedPath}
+            stroke="#D4F66E"
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
           <Line
-            x1={transformX(rampLength + maxX / 2)}
-            y1={transformY(flightMaxY)}
-            x2={transformX(rampLength + maxX / 2)}
+            x1={transformX(apexPoint.x)}
+            y1={transformY(apexPoint.y)}
+            x2={transformX(apexPoint.x)}
             y2={transformY(visibleRampHeight)}
-            stroke="#B79CFF"
+            stroke="#C5A7FF"
             strokeWidth="1"
-            strokeDasharray="3,3"
-            opacity={0.5}
+            strokeDasharray="3,4"
+            opacity={0.8}
+          />
+          <Circle
+            cx={transformX(apexPoint.x)}
+            cy={transformY(apexPoint.y)}
+            r="3.5"
+            fill="#C5A7FF"
           />
           <SvgText
-            x={transformX(rampLength + maxX / 2) + 5}
-            y={transformY(flightMaxY) + 12}
-            fill="#B79CFF"
-            fontSize="9"
+            x={transformX(apexPoint.x) + 7}
+            y={Math.max(plotTop + 9, transformY(apexPoint.y) - 6)}
+            fill="#D9C7FF"
+            fontSize="8"
+            fontWeight="700"
           >
-            {useMetric ? result.max_height_meters : result.max_height_feet} {useMetric ? 'm' : 'ft'}
+            APEX +{useMetric ? result.max_height_meters : result.max_height_feet} {distanceUnit}
           </SvgText>
 
           <Line
             x1={transformX(currentPoint.x)}
-            y1={transformY(currentPoint.y) + 11}
+            y1={transformY(currentPoint.y)}
             x2={transformX(currentPoint.x)}
-            y2={transformY(landingWorldY)}
-            stroke="#D9E8E5"
+            y2={svgHeight - plotBottom}
+            stroke="#91A7B0"
             strokeWidth="1"
-            strokeDasharray="2,5"
-            opacity={0.35}
+            strokeDasharray="3,4"
+            opacity={0.55}
           />
-          <Ellipse
-            cx={transformX(currentPoint.x)}
-            cy={transformY(landingWorldY) + 4}
-            rx="9"
-            ry="2.5"
-            fill="#000000"
-            opacity={0.35}
-          />
-
-          {/* Simplified rider and bike marker follows the arc tangent. */}
+          {animationProgress < 1 && (
+            <Line
+              x1={transformX(currentPoint.x)}
+              y1={transformY(currentPoint.y)}
+              x2={transformX(velocityVectorEnd.x)}
+              y2={transformY(velocityVectorEnd.y)}
+              stroke="#F5FAF8"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+          )}
           <G
-            transform={`translate(${transformX(currentPoint.x)}, ${transformY(currentPoint.y)}) rotate(${bikeRotation})`}
+            transform={`translate(${transformX(currentPoint.x)} ${transformY(currentPoint.y)}) rotate(${bikeAngleDegrees})`}
           >
-            <Circle cx="-8" cy="2" r="4.5" fill="#10232B" stroke="#D4F66E" strokeWidth="1.8" />
-            <Circle cx="8" cy="2" r="4.5" fill="#10232B" stroke="#D4F66E" strokeWidth="1.8" />
+            <Circle cx="-11" cy="2" r="4.3" fill="#091720" stroke="#D4F66E" strokeWidth="1.7" />
+            <Circle cx="11" cy="2" r="4.3" fill="#091720" stroke="#D4F66E" strokeWidth="1.7" />
+            <Circle cx="-11" cy="2" r="1" fill="#91A7B0" />
+            <Circle cx="11" cy="2" r="1" fill="#91A7B0" />
             <Path
-              d="M -8 2 L -2 -3 L 5 2 L -8 2 M -2 -3 L 2 -6 L 8 2 M 4 -1 L 10 -3"
-              stroke="#F5FAF8"
+              d="M -11 2 L -4 -4 L 4 2 L -11 2 M -4 -4 L 1 -5 L 11 2 M 4 2 L 7 -5 L 10 -7 M -5 -5 L -8 -7"
+              fill="none"
+              stroke="#F18A24"
               strokeWidth="2"
-              fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
+            <Path d="M -2 -5 L 2 -6 L 5 -4 L 1 -2 Z" fill="#82B6FF" stroke="#DCE8EF" strokeWidth="0.7" />
             <Path
-              d="M -1 -5 L 1 -10 L 5 -8 L 4 -4 L 1 -2"
-              stroke="#A6D608"
-              strokeWidth="3"
+              d="M -4 -12 L -1 -7 L 4 -5 M -1 -7 L -7 -5 L -9 -7 M -1 -7 L 3 -2 L 7 1"
               fill="none"
+              stroke="#F5FAF8"
+              strokeWidth="2.2"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <Circle
-              cx="3"
-              cy="-13"
-              r="3"
-              fill="#E8B86D"
-              stroke="#F5FAF8"
-              strokeWidth="1"
-            />
+            <Circle cx="-5" cy="-14" r="3.1" fill="#F18A24" stroke="#F5FAF8" strokeWidth="0.8" />
+            <Path d="M -8 -14 Q -6 -19 -1 -16 L -2 -13 Z" fill="#F18A24" stroke="#F5FAF8" strokeWidth="0.7" />
           </G>
         </Svg>
 
@@ -1184,9 +1265,8 @@ export default function Index() {
             {isAnimating ? 'IN FLIGHT' : animationProgress >= 1 ? 'LANDED' : 'READY'}
           </Text>
           <Text style={styles.simulationReadoutValue}>
-            {Math.round(animationProgress * result.flight_time_seconds * 10) / 10}s
-            {'  ·  '}
-            {Math.round(animationProgress * 100)}%
+            t {simulatedTime.toFixed(1)} s {' · '}v {simulatedSpeed.toFixed(1)} {speedUnit}
+            {' · '}{Math.round(animationProgress * 100)}%
           </Text>
         </View>
 
@@ -1205,7 +1285,9 @@ export default function Index() {
           </View>
         </View>
         <Text style={styles.simulationDisclaimer}>
-          Simplified arc visualization only. It does not model wind, terrain, suspension, or rider control and is not a safety guarantee.
+          {result.input_data.ramp_height > 0
+            ? 'Idealized 2D ballistic model; landing-ramp shape is illustrative because its angle is not an input. Wind, terrain, suspension, and rider control are not modeled; this is not a safety guarantee.'
+            : 'Takeoff and landing profiles are illustrative because ramp height and landing-ramp angle were not provided. Wind, terrain, suspension, and rider control are not modeled; this is not a safety guarantee.'}
         </Text>
         <TouchableOpacity
           style={[styles.logSimulatedJumpButton, isLoggingSimulatedJump && styles.logSimulatedJumpDisabled]}
@@ -1439,6 +1521,15 @@ export default function Index() {
               setShowResultsPage(false);
               setResult(null);
             }}
+            onDismiss={() => {
+              if (Platform.OS === 'ios' && pendingGhostTrajectoryParams) {
+                router.push({
+                  pathname: '/ghost-ar',
+                  params: pendingGhostTrajectoryParams,
+                });
+                setPendingGhostTrajectoryParams(null);
+              }
+            }}
           >
             <SafeAreaView style={styles.resultsPage}>
               <View style={styles.resultsPageHeader}>
@@ -1480,69 +1571,51 @@ export default function Index() {
 
               {/* Trajectory Visualization */}
               {renderTrajectory()}
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Open illustrative ghost trajectory camera viewfinder"
-                onPress={() => {
-                  const feet = (value: number) =>
-                    result.input_data.unit_system === 'metric' ? value * 3.28084 : value;
-                  router.push({
-                    pathname: '/ghost-ar',
-                    params: {
+              <View style={styles.resultsControlsRow}>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Ghost Trajectory"
+                  accessibilityHint="Opens the camera overlay with this calculated jump path."
+                  onPress={() => {
+                    const feet = (value: number) =>
+                      result.input_data.unit_system === 'metric' ? value * 3.28084 : value;
+                    setPendingGhostTrajectoryParams({
                       speedMph: String(result.required_speed_mph),
                       gapFeet: String(feet(result.input_data.gap_distance)),
                       rampAngle: String(result.input_data.ramp_angle),
                       rampHeightFeet: String(feet(result.input_data.ramp_height || 0)),
                       landingHeightFeet: String(feet(result.input_data.landing_height || 0)),
-                    },
-                  });
-                }}
-                style={styles.ghostArButton}
-              >
-                <Ionicons name="camera-outline" size={19} color="#07111E" />
-                <Text style={styles.ghostArButtonText}>Open Ghost Trajectory Viewfinder</Text>
-              </TouchableOpacity>
-
-              {/* Main Speed Result */}
-              <View style={styles.mainResultCard}>
-                <Text style={styles.mainResultLabel}>Required Speed</Text>
-                <Text style={styles.mainResultValue}>
-                  {useMetric ? result.required_speed_kph : result.required_speed_mph}
-                  <Text style={styles.mainResultUnit}> {speedUnit}</Text>
-                </Text>
+                    });
+                    setShowResultsPage(false);
+                  }}
+                  style={styles.ghostArButton}
+                >
+                  <Ionicons name="camera-outline" size={19} color="#07111E" />
+                  <Text style={styles.ghostArButtonText}>Ghost Trajectory</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={isPacingActive ? 'Stop speed guidance' : 'Start speed guidance'}
+                  accessibilityHint="Compares your live GPS speed with this calculation."
+                  onPress={() => {
+                    if (isPacingActive) {
+                      stopPacing();
+                    } else {
+                      void startPacing();
+                    }
+                  }}
+                  style={styles.pacingButton}
+                >
+                  <Ionicons
+                    name={isPacingActive ? 'volume-mute' : 'volume-high'}
+                    size={22}
+                    color="#07111E"
+                  />
+                  <Text style={styles.pacingButtonText}>Speed Guidance</Text>
+                </TouchableOpacity>
               </View>
-
-              <View style={styles.pacingCard}>
-                <View style={styles.pacingHeader}>
-                  <View style={styles.pacingCopy}>
-                    <Text style={styles.pacingTitle}>Audible Pace Guidance</Text>
-                    <Text style={styles.pacingDescription}>
-                      Hear how your live GPS speed compares with this calculation.
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel={isPacingActive ? 'Stop audible pacing guidance' : 'Start audible pacing guidance'}
-                    onPress={() => {
-                      if (isPacingActive) {
-                        stopPacing();
-                      } else {
-                        void startPacing();
-                      }
-                    }}
-                    style={[styles.pacingButton, isPacingActive && styles.pacingButtonActive]}
-                  >
-                    <Ionicons
-                      name={isPacingActive ? 'volume-mute' : 'volume-high'}
-                      size={18}
-                      color={isPacingActive ? '#F5FAF8' : '#000000'}
-                    />
-                    <Text style={[styles.pacingButtonText, isPacingActive && styles.pacingButtonTextActive]}>
-                      {isPacingActive ? 'Stop' : 'Start'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {isPacingActive && (
+              <View style={styles.pacingSection}>
+                {!!pacingStatus && (
                   <View style={styles.pacingStatusRow}>
                     <View style={styles.pacingStatusCopy}>
                       <Text style={styles.pacingStatusText}>
@@ -1559,52 +1632,65 @@ export default function Index() {
                 </Text>
               </View>
 
-              {/* Safety Speed */}
-              <View style={styles.safetyCard}>
-                <Ionicons name="shield-checkmark" size={24} color="#E8B86D" />
-                <View style={styles.safetyContent}>
-                  <Text style={styles.safetyLabel}>Recommended Safe Speed (+15%)</Text>
-                  <Text style={styles.safetyValue}>
-                    {useMetric ? result.safety_speed_kph : result.safety_speed_mph} {speedUnit}
-                  </Text>
-                </View>
-              </View>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showBreakdown }}
+                onPress={() => setShowBreakdown((visible) => !visible)}
+                style={styles.breakdownButton}
+              >
+                <Ionicons name={showBreakdown ? 'chevron-up' : 'analytics'} size={20} color="#07111E" />
+                <Text style={styles.breakdownButtonText}>
+                  {showBreakdown ? 'Hide Breakdown' : 'Break Down'}
+                </Text>
+              </TouchableOpacity>
 
-              {/* Detailed Stats */}
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Ionicons name="time" size={20} color="#82B6FF" />
-                  <Text style={styles.statValue}>{result.flight_time_seconds}s</Text>
-                  <Text style={styles.statLabel}>Flight Time</Text>
+              {showBreakdown && (
+                <View style={styles.statsGrid}>
+                  <View style={styles.statCard}>
+                    <Ionicons name="speedometer" size={20} color="#D4F66E" />
+                    <Text style={styles.statValue}>
+                      {useMetric ? result.required_speed_kph : result.required_speed_mph} {speedUnit}
+                    </Text>
+                    <Text style={styles.statLabel}>Required Speed</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="shield-checkmark" size={20} color="#D4F66E" />
+                    <Text style={styles.statValue}>
+                      {useMetric ? result.safety_speed_kph : result.safety_speed_mph} {speedUnit}
+                    </Text>
+                    <Text style={styles.statLabel}>Recommended Speed</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="arrow-up" size={20} color="#B79CFF" />
+                    <Text style={styles.statValue}>
+                      {useMetric ? result.max_height_meters : result.max_height_feet}
+                      {useMetric ? 'm' : 'ft'}
+                    </Text>
+                    <Text style={styles.statLabel}>Max Height</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="arrow-down" size={20} color="#FF7A86" />
+                    <Text style={styles.statValue}>
+                      {useMetric ? result.landing_velocity_kph : result.landing_velocity_mph}
+                      {speedUnit}
+                    </Text>
+                    <Text style={styles.statLabel}>Landing Speed</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="fitness" size={20} color="#8BD6A7" />
+                    <Text style={styles.statValue}>
+                      {useMetric ? result.total_weight_kg : result.total_weight_lbs}
+                      {weightUnit}
+                    </Text>
+                    <Text style={styles.statLabel}>Total Weight</Text>
+                  </View>
+                  <View style={styles.statCard}>
+                    <Ionicons name="time" size={20} color="#82B6FF" />
+                    <Text style={styles.statValue}>{result.flight_time_seconds}s</Text>
+                    <Text style={styles.statLabel}>Flight Time</Text>
+                  </View>
                 </View>
-
-                <View style={styles.statCard}>
-                  <Ionicons name="arrow-up" size={20} color="#B79CFF" />
-                  <Text style={styles.statValue}>
-                    {useMetric ? result.max_height_meters : result.max_height_feet}
-                    {useMetric ? 'm' : 'ft'}
-                  </Text>
-                  <Text style={styles.statLabel}>Max Height</Text>
-                </View>
-
-                <View style={styles.statCard}>
-                  <Ionicons name="arrow-down" size={20} color="#FF7A86" />
-                  <Text style={styles.statValue}>
-                    {useMetric ? result.landing_velocity_kph : result.landing_velocity_mph}
-                    {speedUnit}
-                  </Text>
-                  <Text style={styles.statLabel}>Landing Speed</Text>
-                </View>
-
-                <View style={styles.statCard}>
-                  <Ionicons name="fitness" size={20} color="#8BD6A7" />
-                  <Text style={styles.statValue}>
-                    {useMetric ? result.total_weight_kg : result.total_weight_lbs}
-                    {weightUnit}
-                  </Text>
-                  <Text style={styles.statLabel}>Total Weight</Text>
-                </View>
-              </View>
+              )}
 
               {/* Warnings */}
               {result.warnings && result.warnings.length > 0 && (
@@ -1652,7 +1738,7 @@ export default function Index() {
                       <ActivityIndicator color="#000000" />
                     ) : (
                       <>
-                        <Ionicons name="heart" size={24} color="#F5FAF8" />
+                        <Ionicons name="heart" size={24} color="#07111E" />
                         <Text style={styles.alertRidersButtonText}>Alert Nearby Riders</Text>
                       </>
                     )}
@@ -1931,7 +2017,7 @@ const styles = StyleSheet.create({
   },
   inputMethodTitle: {
     color: '#A8B5C4',
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -2003,7 +2089,7 @@ const styles = StyleSheet.create({
   },
   unitLabel: {
     color: '#A8B5C4',
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '700',
     paddingHorizontal: 5,
   },
@@ -2023,7 +2109,7 @@ const styles = StyleSheet.create({
   toggleText: {
     color: '#A8B5C4',
     fontWeight: '600',
-    fontSize: 11,
+    fontSize: 14,
   },
   toggleTextActive: {
     color: '#07111E',
@@ -2125,7 +2211,7 @@ const styles = StyleSheet.create({
   },
   inputWizardBackText: {
     color: '#C2D0CE',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
   },
   inputWizardResetButton: {
@@ -2137,7 +2223,7 @@ const styles = StyleSheet.create({
   },
   inputWizardResetText: {
     color: '#A8B5C4',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
   },
   inputWizardNextButton: {
@@ -2154,7 +2240,7 @@ const styles = StyleSheet.create({
   },
   inputWizardNextText: {
     color: '#07111E',
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '900',
   },
   wideFormContainer: {
@@ -2294,7 +2380,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   wideButtonText: {
-    fontSize: 10,
+    fontSize: 14,
     letterSpacing: 0,
   },
   calculateButton: {
@@ -2315,9 +2401,11 @@ const styles = StyleSheet.create({
   },
   calculateButtonText: {
     color: '#07111E',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '900',
     letterSpacing: 0.4,
+    flexShrink: 1,
+    textAlign: 'center',
   },
   clearButton: {
     flex: 1,
@@ -2333,8 +2421,10 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     color: '#A8B5C4',
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   resultsContainer: {
     backgroundColor: 'rgba(20, 37, 44, 0.76)',
@@ -2416,6 +2506,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#F5FAF8',
   },
+  simulationSpeedPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  simulationSpeedCard: {
+    flex: 1,
+    minHeight: 74,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#A6D608',
+  },
+  simulationSpeedLabel: {
+    color: '#07111E',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textAlign: 'center',
+  },
+  simulationSpeedValue: {
+    marginTop: 3,
+    color: '#07111E',
+    fontSize: 24,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+  },
+  simulationSpeedUnit: {
+    color: '#07111E',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   replayButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2482,8 +2609,34 @@ const styles = StyleSheet.create({
   },
   logSimulatedJumpButtonText: {
     color: '#07111E',
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '800',
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  ghostArButtonText: {
+    color: '#07111E',
+    fontSize: 17,
+    fontWeight: '800',
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  resultsControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
+    marginBottom: 4,
+  },
+  ghostArButton: {
+    flex: 1,
+    minHeight: 48,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: '#A6D608',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   logSimulatedJumpHint: {
     color: '#9AADB0',
@@ -2511,77 +2664,32 @@ const styles = StyleSheet.create({
     color: '#C2D0CE',
     fontSize: 11,
   },
-  mainResultCard: {
-    backgroundColor: 'rgba(29, 51, 58, 0.78)',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
+  pacingSection: {
     marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#8BD6A7',
-  },
-  mainResultLabel: {
-    fontSize: 14,
-    color: '#C2D0CE',
-    marginBottom: 8,
-  },
-  mainResultValue: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#8BD6A7',
-  },
-  mainResultUnit: {
-    fontSize: 24,
-    fontWeight: 'normal',
-  },
-  pacingCard: {
-    backgroundColor: 'rgba(29, 51, 58, 0.78)',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#405C65',
-  },
-  pacingHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  pacingCopy: {
-    flex: 1,
-  },
-  pacingTitle: {
-    color: '#F5FAF8',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  pacingDescription: {
-    color: '#C2D0CE',
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 4,
   },
   pacingButton: {
-    minWidth: 86,
-    minHeight: 42,
-    paddingHorizontal: 12,
+    flex: 1,
+    minHeight: 56,
+    minWidth: 0,
+    paddingHorizontal: 8,
     borderRadius: 10,
-    backgroundColor: '#A6D608',
+    backgroundColor: '#FF5A00',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-  },
-  pacingButtonActive: {
-    backgroundColor: '#B94D5B',
+    shadowColor: '#FF5A00',
+    shadowOpacity: 0.9,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
   pacingButtonText: {
-    color: '#000000',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  pacingButtonTextActive: {
-    color: '#F5FAF8',
+    flexShrink: 1,
+    color: '#07111E',
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   pacingStatusRow: {
     flexDirection: 'row',
@@ -2616,40 +2724,34 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 12,
   },
-  safetyCard: {
-    backgroundColor: 'rgba(232, 184, 109, 0.1)',
-    borderRadius: 12,
-    padding: 16,
+  breakdownButton: {
+    minHeight: 48,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: '#A6D608',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(232, 184, 109, 0.3)',
+    justifyContent: 'center',
+    gap: 8,
   },
-  safetyContent: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  safetyLabel: {
-    fontSize: 12,
-    color: '#E8B86D',
-    marginBottom: 4,
-  },
-  safetyValue: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#E8B86D',
+  breakdownButtonText: {
+    color: '#07111E',
+    fontSize: 18,
+    fontWeight: '900',
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 12,
   },
   statCard: {
     backgroundColor: 'rgba(29, 51, 58, 0.78)',
     borderRadius: 12,
-    padding: 16,
-    width: (width - 76) / 2,
+    padding: 12,
+    width: '47%',
     alignItems: 'center',
   },
   statValue: {
@@ -2742,7 +2844,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   callHelpButton: {
-    backgroundColor: '#FF7A86',
+    backgroundColor: '#FF1744',
+    borderWidth: 3,
+    borderColor: '#FFD6DF',
+    shadowColor: '#FF1744',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 16,
     flex: 1,
     borderRadius: 10,
     padding: 10,
@@ -2753,13 +2862,24 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   callHelpButtonText: {
-    color: '#F5FAF8',
-    fontSize: 13,
+    color: '#FFFFFF',
+    textShadowColor: '#8B001B',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+    fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
+    flexShrink: 1,
   },
   alertRidersButton: {
-    backgroundColor: '#267A58',
+    backgroundColor: '#B7FF00',
+    borderWidth: 2,
+    borderColor: '#E1FF8A',
+    shadowColor: '#A6D608',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    elevation: 10,
     flex: 1,
     borderRadius: 10,
     padding: 10,
@@ -2770,10 +2890,11 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   alertRidersButtonText: {
-    color: '#F5FAF8',
-    fontSize: 13,
+    color: '#07111E',
+    fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
+    flexShrink: 1,
   },
   confirmModalOverlay: {
     flex: 1,
@@ -2832,8 +2953,9 @@ const styles = StyleSheet.create({
   },
   confirmModalCancelText: {
     color: '#F5FAF8',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
+    textAlign: 'center',
   },
   confirmModalCallButton: {
     flex: 1,
@@ -2848,8 +2970,10 @@ const styles = StyleSheet.create({
   },
   confirmModalCallText: {
     color: '#F5FAF8',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   confirmModalAlertButton: {
     flex: 1,
@@ -2864,8 +2988,10 @@ const styles = StyleSheet.create({
   },
   confirmModalAlertText: {
     color: '#F5FAF8',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   // Modal styles
   modalOverlay: {
@@ -2932,7 +3058,9 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: '#000000',
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '600',
+    flexShrink: 1,
+    textAlign: 'center',
   },
 });

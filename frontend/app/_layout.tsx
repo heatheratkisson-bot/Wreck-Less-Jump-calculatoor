@@ -133,6 +133,7 @@ export default function RootLayout() {
         <Stack.Screen name="paywall" />
         <Stack.Screen name="payment-success" />
         <Stack.Screen name="payment-cancel" />
+        <Stack.Screen name="ghost-ar" />
       </Stack>
     </SubscriptionContext.Provider>
   );

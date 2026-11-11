@@ -34,6 +34,14 @@
       ],
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Wreck-Less to display your jump trajectory over the camera.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "Allow Wreck-Less to use your location while using the app."

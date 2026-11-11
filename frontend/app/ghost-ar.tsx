@@ -21,6 +21,7 @@ function readNumber(value: string | string[] | undefined): number | null {
 
 export default function GhostTrajectoryViewfinder() {
   const router = useRouter();
+  const returnToCalculator = () => router.replace('/(tabs)/index');
   const params = useLocalSearchParams<{
     speedMph?: string;
     gapFeet?: string;
@@ -81,6 +82,7 @@ export default function GhostTrajectoryViewfinder() {
     gapFeet,
     hasValidCalculation,
     height,
+    landingHeightFeet,
     rampHeightFeet,
     rampAngle,
     speedMph,
@@ -92,7 +94,12 @@ export default function GhostTrajectoryViewfinder() {
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Back to results">
+          <Pressable
+            accessibilityRole="button"
+            onPress={returnToCalculator}
+            style={styles.backButton}
+            accessibilityLabel="Return to calculator"
+          >
             <Ionicons name="arrow-back" size={23} color="#F5FAF8" />
           </Pressable>
           <Text style={styles.headerTitle}>Ghost Trajectory Viewfinder</Text>
@@ -140,8 +147,8 @@ export default function GhostTrajectoryViewfinder() {
         <View style={styles.header}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Back to results"
-            onPress={() => router.back()}
+            accessibilityLabel="Return to calculator"
+            onPress={returnToCalculator}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={23} color="#F5FAF8" />
@@ -219,7 +226,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#081116',
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'space-between',
   },
   container: {
