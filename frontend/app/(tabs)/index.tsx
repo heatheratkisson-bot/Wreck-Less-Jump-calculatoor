@@ -70,6 +70,7 @@ export default function Index() {
   const [riderWeight, setRiderWeight] = useState('');
   const [landingHeight, setLandingHeight] = useState('');
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [inputStep, setInputStep] = useState(0);
 
   // UI states
   const [isLoading, setIsLoading] = useState(false);
@@ -445,6 +446,7 @@ export default function Index() {
     setResult(null);
     setShowResultsPage(false);
     setAnimationProgress(0);
+    setInputStep(0);
   };
 
   const applyMeasurements = (measurements: Measurements) => {
@@ -739,6 +741,118 @@ export default function Index() {
   const distanceUnit = useMetric ? 'm' : 'ft';
   const weightUnit = useMetric ? 'kg' : 'lbs';
   const speedUnit = useMetric ? 'km/h' : 'mph';
+  const inputSteps = [
+    {
+      key: 'rampHeight',
+      title: 'Ramp Height',
+      label: `Ramp Height (${distanceUnit})`,
+      value: rampHeight,
+      onChangeText: setRampHeight,
+      placeholder: useMetric ? 'e.g., 1.5' : 'e.g., 5',
+      keyboardType: 'decimal-pad' as const,
+      required: false,
+      helperText: 'Optional. Leave blank if you do not know the ramp height.',
+      icon: 'construct' as const,
+    },
+    {
+      key: 'gapDistance',
+      title: 'Gap Distance',
+      label: `Gap Distance (${distanceUnit})`,
+      value: gapDistance,
+      onChangeText: setGapDistance,
+      placeholder: useMetric ? 'e.g., 15' : 'e.g., 50',
+      keyboardType: 'decimal-pad' as const,
+      required: true,
+      helperText: '',
+      icon: 'resize' as const,
+    },
+    {
+      key: 'rampAngle',
+      title: 'Ramp Angle',
+      label: 'Ramp Angle (degrees)',
+      value: rampAngle,
+      onChangeText: setRampAngle,
+      placeholder: 'e.g., 30',
+      keyboardType: 'decimal-pad' as const,
+      required: true,
+      helperText: 'Enter an angle greater than 0° and less than 90°.',
+      icon: 'trending-up' as const,
+    },
+    {
+      key: 'landingHeight',
+      title: 'Landing Height',
+      label: `Landing Height Difference (${distanceUnit})`,
+      value: landingHeight,
+      onChangeText: setLandingHeight,
+      placeholder: 'e.g., -3',
+      keyboardType: 'numbers-and-punctuation' as const,
+      required: false,
+      helperText: 'Optional. Use a negative number if the landing is lower.',
+      icon: 'arrow-down' as const,
+    },
+    {
+      key: 'bikeWeight',
+      title: 'Dirt Bike Weight',
+      label: `Dirt Bike Weight (${weightUnit})`,
+      value: bikeWeight,
+      onChangeText: setBikeWeight,
+      placeholder: useMetric ? 'e.g., 100' : 'e.g., 220',
+      keyboardType: 'decimal-pad' as const,
+      required: true,
+      helperText: selectedMotorcycle
+        ? `${selectedMotorcycle.year} ${selectedMotorcycle.brand} ${selectedMotorcycle.model} profile default. Editable for this calculation.`
+        : 'Enter the weight of your dirt bike.',
+      icon: 'bicycle' as const,
+    },
+    {
+      key: 'riderWeight',
+      title: 'Rider Weight',
+      label: `Rider Weight (${weightUnit})`,
+      value: riderWeight,
+      onChangeText: setRiderWeight,
+      placeholder: useMetric ? 'e.g., 75' : 'e.g., 165',
+      keyboardType: 'decimal-pad' as const,
+      required: true,
+      helperText: 'Synced from Rider Profile. Editable for this calculation.',
+      icon: 'person' as const,
+    },
+  ];
+  const currentInputStep = inputSteps[inputStep];
+
+  const advanceInputStep = () => {
+    if (!currentInputStep) {
+      return;
+    }
+
+    const value = currentInputStep.value.trim();
+    const number = Number(value);
+    if (currentInputStep.required && !value) {
+      Alert.alert('Missing Information', `${currentInputStep.label} is required.`);
+      return;
+    }
+    if (value && !Number.isFinite(number)) {
+      Alert.alert('Invalid Number', `Enter a valid number for ${currentInputStep.label}.`);
+      return;
+    }
+    if (currentInputStep.key === 'rampAngle' && (number <= 0 || number >= 90)) {
+      Alert.alert('Invalid Angle', 'Ramp angle must be between 0 and 90 degrees.');
+      return;
+    }
+    if (currentInputStep.key === 'gapDistance' && number <= 0) {
+      Alert.alert('Invalid Distance', 'Gap distance must be greater than 0.');
+      return;
+    }
+    if (
+      (currentInputStep.key === 'bikeWeight' || currentInputStep.key === 'riderWeight') &&
+      number <= 0
+    ) {
+      Alert.alert('Invalid Weight', 'Bike weight and rider weight must be greater than 0.');
+      return;
+    }
+
+    setFocusedField(null);
+    setInputStep((step) => Math.min(step + 1, inputSteps.length - 1));
+  };
 
   // Trajectory visualization component
   const renderTrajectory = () => {
