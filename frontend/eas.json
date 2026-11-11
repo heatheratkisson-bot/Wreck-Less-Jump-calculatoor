@@ -1,6 +1,5 @@
 {
   "cli": {
-    "version": ">= 3.8.1"
     "version": ">= 16.0.0"
   },
   "build": {
@@ -14,24 +13,17 @@
         "buildType": "apk"
       }
     },
-    "production": {}
-      "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
-      },
-      "distribution": "internal"
-    },
     "production": {
       "android": {
         "buildType": "app-bundle"
       }
     },
     "local-apk": {
+      "distribution": "internal",
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
       },
-      "distribution": "internal",
       "cache": {
         "disabled": true
       }

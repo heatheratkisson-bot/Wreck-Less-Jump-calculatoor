@@ -1,51 +1,106 @@
 import React from 'react';
-import { Tabs, Redirect } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, ActivityIndicator, View, Text, StyleSheet, type ColorValue } from 'react-native';
+import { Platform, View, Text, StyleSheet, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSubscription } from '../_layout';
 
-// Tab bar icon components defined outside of render
-type TabIconProps = { color: ColorValue; size: number };
+const RED_BULL_THEME = {
+  accent: '#E10600',
+  accentSoft: '#FF4D3A',
+  tabBar: '#151515',
+  tabBarBorder: '#2B2B2B',
+  inactive: '#9AA0A6',
+  text: '#FFFFFF',
+  panel: '#1E1E1E',
+};
 
-const CalculatorIcon = ({ color, size }: TabIconProps) => (
-  <Ionicons name="calculator" size={size} color={color} />
-);
+const HONDA_THEME = {
+  accent: '#F97316',
+  accentSoft: '#FB923C',
+  tabBar: '#0F172A',
+  tabBarBorder: '#1E293B',
+  inactive: '#94A3B8',
+  text: '#F8FAFC',
+  panel: '#111827',
+};
 
-const MeasureIcon = ({ color, size }: TabIconProps) => (
-  <Ionicons name="camera" size={size} color={color} />
-);
+const getThemeForRoute = (routeName: string) =>
+  routeName === 'map' || routeName === 'profile' ? HONDA_THEME : RED_BULL_THEME;
 
-const SavedIcon = ({ color, size }: TabIconProps) => (
-  <Ionicons name="bookmark" size={size} color={color} />
-);
+const routeLabelMap: Record<string, string> = {
+  index: 'Calculator',
+  measure: 'Measure',
+  saved: 'Saved',
+  map: 'Map',
+  profile: 'Profile',
+};
 
-const MapIcon = ({ color, size }: TabIconProps) => (
-  <Ionicons name="map" size={size} color={color} />
-);
+const routeIconMap: Record<string, string> = {
+  index: 'calculator',
+  measure: 'camera',
+  saved: 'bookmark',
+  map: 'map',
+  profile: 'person',
+};
 
 const EmergencyIcon = ({ color, size }: TabIconProps) => (
   <Ionicons name="heart" size={size} color={color} />
 );
 
+  return (
+    <View
+      style={[
+        styles.tabRail,
+        {
+          backgroundColor: getThemeForRoute(activeRouteName).tabBar,
+          borderRightColor: getThemeForRoute(activeRouteName).tabBarBorder,
+          paddingTop: insets.top + 12,
+          paddingBottom: insets.bottom + 8,
+        },
+      ]}
+    >
+      {state.routes.map((route: any, index: number) => {
+        const isFocused = state.index === index;
+        const routeTheme = getThemeForRoute(route.name);
+
+        return (
+          <Pressable
+            key={route.key}
+            accessibilityRole="button"
+            onPress={() => navigation.navigate(route.name)}
+            style={[
+              styles.tabButton,
+              isFocused && {
+                backgroundColor: routeTheme.accent,
+              },
+            ]}
+          >
+            <Ionicons
+              name={routeIconMap[route.name] ?? 'ellipse'}
+              size={20}
+              color={isFocused ? '#fff' : routeTheme.inactive}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                { color: isFocused ? '#fff' : routeTheme.inactive },
+              ]}
+            >
+              {routeLabelMap[route.name] ?? route.name}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function TabLayout() {
-  const { isSubscribed, isLoading, isTrial, trialInfo } = useSubscription();
-
-  // Show loading while checking subscription
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#121212' }}>
-        <ActivityIndicator size="large" color="#FF6B35" />
-      </View>
-    );
-  }
-
-  // Redirect to paywall if not subscribed and not on trial
-  if (!isSubscribed) {
-    return <Redirect href="/paywall" />;
-  }
+  const { isTrial, trialInfo } = useSubscription();
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, flexDirection: 'row' }}>
       {/* Trial Banner */}
       {isTrial && trialInfo && (
         <View style={styles.trialBanner}>
@@ -55,61 +110,45 @@ export default function TabLayout() {
           </Text>
         </View>
       )}
-      
+
       <Tabs
         initialRouteName="index"
         screenOptions={{
           headerShown: false,
           lazy: true,
-          tabBarStyle: {
-            backgroundColor: '#1A1A1A',
-            borderTopColor: '#333',
-            borderTopWidth: 1,
-            paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-            paddingTop: 8,
-            height: Platform.OS === 'ios' ? 85 : 65,
-          },
-          tabBarActiveTintColor: '#FF6B35',
-          tabBarInactiveTintColor: '#888',
-          tabBarLabelStyle: {
-            fontSize: 12,
-            fontWeight: '600',
-          },
+          tabBarStyle: { display: 'none' },
+          tabBarShowLabel: false,
         }}
+        tabBar={(props) => <CustomTabBar {...props} />}
       >
         <Tabs.Screen
           name="index"
           options={{
             title: 'Calculator',
-            tabBarIcon: CalculatorIcon,
           }}
         />
         <Tabs.Screen
           name="measure"
           options={{
             title: 'Measure',
-            tabBarIcon: MeasureIcon,
           }}
         />
         <Tabs.Screen
           name="saved"
           options={{
             title: 'Saved',
-            tabBarIcon: SavedIcon,
           }}
         />
         <Tabs.Screen
           name="map"
           options={{
             title: 'Map',
-            tabBarIcon: MapIcon,
           }}
         />
         <Tabs.Screen
           name="emergency-settings"
           options={{
-            title: 'Emergency',
-            tabBarIcon: EmergencyIcon,
+            title: 'Profile',
           }}
         />
       </Tabs>
@@ -119,17 +158,42 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   trialBanner: {
-    backgroundColor: '#FF9800',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#E10600',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 16,
     gap: 8,
+    zIndex: 10,
   },
   trialBannerText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  tabRail: {
+    width: 104,
+    borderRightWidth: 1,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+    gap: 8,
+  },
+  tabButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 });
