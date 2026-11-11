@@ -44,9 +44,9 @@ const routeIconMap: Record<string, string> = {
   profile: 'person',
 };
 
-function CustomTabBar({ state, navigation }: any) {
-  const insets = useSafeAreaInsets();
-  const activeRouteName = state.routes[state.index]?.name ?? 'index';
+const EmergencyIcon = ({ color, size }: TabIconProps) => (
+  <Ionicons name="heart" size={size} color={color} />
+);
 
   return (
     <View
@@ -146,7 +146,7 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="profile"
+          name="emergency-settings"
           options={{
             title: 'Profile',
           }}

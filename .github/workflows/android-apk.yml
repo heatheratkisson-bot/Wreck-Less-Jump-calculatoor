@@ -55,6 +55,17 @@ jobs:
             exit 1
           fi
 
+      - name: Pin Gradle to React Native-compatible version
+        working-directory: frontend/android
+        run: |
+          wrapper="gradle/wrapper/gradle-wrapper.properties"
+          sed -i -E 's#gradle-[0-9]+(\.[0-9]+)*-bin\.zip#gradle-9.3.1-bin.zip#' "$wrapper"
+          if ! grep -q 'distributionUrl=.*gradle-9\.3\.1-bin\.zip' "$wrapper"; then
+            echo "::error::Could not set the Gradle wrapper to 9.3.1." >&2
+            exit 1
+          fi
+          grep 'distributionUrl=' "$wrapper"
+
       - name: Cache Gradle outputs
         uses: actions/cache@v4
         with:
