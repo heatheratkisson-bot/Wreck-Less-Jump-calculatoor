@@ -25,7 +25,7 @@ import * as Speech from 'expo-speech';
 import { getPreferredUnitSystem, savePreferredUnitSystem } from '@/lib/preferences';
 import MeasureScreen from './measure';
 import type { MeasureScreenHandle, Measurements } from './measure';
-import { useBeginnerGuide, useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
+import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
 import type { MotorcycleModel } from '@/lib/motorcycleData';
 import Svg, { Path, Circle, Ellipse, Line, Text as SvgText, G, Polygon, Rect } from 'react-native-svg';
 import * as Location from 'expo-location';
@@ -60,7 +60,6 @@ export default function Index() {
   const isWideLayout = windowWidth >= 400 && windowWidth > windowHeight;
   const router = useRouter();
   const { startBeginnerGuide } = useBeginnerGuide();
-  const rampDetailsGuideTarget = useBeginnerGuideTarget('index');
   // Input states
   const [rampHeight, setRampHeight] = useState('');
   const [rampAngle, setRampAngle] = useState('');
@@ -1328,8 +1327,7 @@ export default function Index() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {currentInputStep && (
-            <View style={styles.inputWizard}>
+          <View style={styles.inputWizard}>
               <View style={styles.inputWizardProgress}>
                 <Text style={styles.inputWizardStepText}>
                   Step {inputStep + 1} of {inputSteps.length}
@@ -1349,9 +1347,6 @@ export default function Index() {
               </View>
 
               <View
-                ref={inputStep === 0 ? rampDetailsGuideTarget.ref : undefined}
-                onLayout={inputStep === 0 ? rampDetailsGuideTarget.onLayout : undefined}
-                collapsable={false}
                 style={styles.inputWizardCard}
               >
                 <Ionicons name={currentInputStep.icon} size={30} color="#A6D608" />
@@ -1432,8 +1427,7 @@ export default function Index() {
                   </>
                 )}
               </TouchableOpacity>
-            </View>
-          )}
+          </View>
 
           {/* Results page */}
           <Modal
@@ -1668,39 +1662,6 @@ export default function Index() {
             </SafeAreaView>
           </Modal>
         </ScrollView>
-        {isWideLayout && (
-          <View style={styles.trajectoryPreview}>
-            <Text style={styles.previewTitle}>TRAJECTORY PREVIEW</Text>
-            <View style={styles.previewGraph}>
-              <Svg width="100%" height="100%" viewBox="0 0 320 180">
-                <Rect x="1" y="1" width="318" height="178" rx="8" fill="#10232B" stroke="#35515A" />
-                <Line x1="20" y1="126" x2="300" y2="126" stroke="#A8B5C4" strokeDasharray="4 5" opacity="0.35" />
-                <Path d="M 28 126 Q 160 -4 292 126" fill="none" stroke="#A6D608" strokeWidth="4" />
-                <Path d="M 28 126 L 66 101 L 66 126 Z" fill="#A6D608" opacity="0.28" />
-                <Line x1="28" y1="126" x2="66" y2="101" stroke="#D4F66E" strokeWidth="3" />
-                <Rect x="20" y="126" width="58" height="31" fill="#A6D608" opacity="0.14" />
-                <Rect x="244" y="126" width="56" height="31" fill="#A6D608" opacity="0.14" />
-                <Circle cx="160" cy="61" r="4" fill="#D4F66E" />
-                <Circle cx="28" cy="126" r="4" fill="#A6D608" />
-                <Circle cx="292" cy="126" r="4" fill="#A6D608" />
-                <SvgText x="160" y="48" fill="#C2D0CE" fontSize="10" textAnchor="middle">Apex</SvgText>
-                <SvgText x="48" y="144" fill="#C2D0CE" fontSize="9" textAnchor="middle">Takeoff</SvgText>
-                <SvgText x="272" y="144" fill="#C2D0CE" fontSize="9" textAnchor="middle">Landing</SvgText>
-              </Svg>
-            </View>
-            <View style={styles.previewStats}>
-              {['Predicted Speed', 'Predicted Distance', 'Predicted Height', 'Landing Speed'].map((label) => (
-                <View key={label} style={styles.previewStatRow}>
-                  <Text style={styles.previewStatLabel}>{label}</Text>
-                  <Text style={styles.previewStatValue}>—</Text>
-                </View>
-              ))}
-            </View>
-            <Text style={styles.previewHint}>
-              Illustrative path only. Enter your setup and calculate to see estimates.
-            </Text>
-          </View>
-        )}
         </View>
 
         <View
@@ -2374,55 +2335,6 @@ const styles = StyleSheet.create({
     color: '#A8B5C4',
     fontSize: 15,
     fontWeight: '700',
-  },
-  trajectoryPreview: {
-    flex: 1,
-    minWidth: 0,
-    backgroundColor: '#0F1D2D',
-    borderColor: '#26384B',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 10,
-  },
-  previewTitle: {
-    color: '#D5DDE6',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 7,
-  },
-  previewGraph: {
-    height: 145,
-    minHeight: 110,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  previewStats: {
-    marginTop: 8,
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#0A1522',
-  },
-  previewStatRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 3,
-  },
-  previewStatLabel: {
-    color: '#C2D0CE',
-    fontSize: 10,
-  },
-  previewStatValue: {
-    color: '#D4F66E',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  previewHint: {
-    color: '#9AADB0',
-    fontSize: 9,
-    lineHeight: 13,
-    marginTop: 8,
   },
   resultsContainer: {
     backgroundColor: 'rgba(20, 37, 44, 0.76)',
