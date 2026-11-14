@@ -1,8 +1,9 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform, View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSubscription } from '../_layout';
 
 const RED_BULL_THEME = {
@@ -36,7 +37,9 @@ const routeLabelMap: Record<string, string> = {
   profile: 'Profile',
 };
 
-const routeIconMap: Record<string, string> = {
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const routeIconMap: Record<string, IoniconName> = {
   index: 'calculator',
   measure: 'camera',
   saved: 'bookmark',
@@ -44,10 +47,9 @@ const routeIconMap: Record<string, string> = {
   profile: 'person',
 };
 
-const EmergencyIcon = ({ color, size }: TabIconProps) => (
-  <Ionicons name="heart" size={size} color={color} />
-);
-
+function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+  const activeRouteName = state.routes[state.index].name;
   return (
     <View
       style={[
@@ -60,7 +62,7 @@ const EmergencyIcon = ({ color, size }: TabIconProps) => (
         },
       ]}
     >
-      {state.routes.map((route: any, index: number) => {
+      {state.routes.map((route, index) => {
         const isFocused = state.index === index;
         const routeTheme = getThemeForRoute(route.name);
 
