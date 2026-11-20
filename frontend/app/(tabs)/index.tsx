@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import Slider from '@react-native-community/slider';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { getPreferredUnitSystem, savePreferredUnitSystem } from '@/lib/preferences';
@@ -384,8 +385,8 @@ export default function Index() {
     }
 
     const gap = parseFloat(gapDistance);
-    if (gap <= 0) {
-      Alert.alert('Invalid Distance', 'Gap distance must be greater than 0.');
+    if (!Number.isFinite(gap) || gap <= 0 || gap > 100) {
+      Alert.alert('Invalid Distance', 'Gap distance must be between 1 and 100 feet.');
       return false;
     }
 
@@ -415,7 +416,7 @@ export default function Index() {
       const inputData: JumpCalculationInput = {
         ramp_height: parseFloat(rampHeight) || 0,
         ramp_angle: parseFloat(rampAngle),
-        gap_distance: parseFloat(gapDistance),
+        gap_distance: useMetric ? parseFloat(gapDistance) / 3.28084 : parseFloat(gapDistance),
         bike_weight: parseFloat(bikeWeight),
         rider_weight: parseFloat(riderWeight),
         landing_height: parseFloat(landingHeight) || 0,
@@ -775,18 +776,6 @@ export default function Index() {
       icon: 'construct' as const,
     },
     {
-      key: 'gapDistance',
-      title: 'Gap Distance',
-      label: `Gap Distance (${distanceUnit})`,
-      value: gapDistance,
-      onChangeText: setGapDistance,
-      placeholder: useMetric ? 'e.g., 15' : 'e.g., 50',
-      keyboardType: 'decimal-pad' as const,
-      required: true,
-      helperText: '',
-      icon: 'resize' as const,
-    },
-    {
       key: 'rampAngle',
       title: 'Ramp Angle',
       label: 'Ramp Angle (degrees)',
@@ -836,8 +825,24 @@ export default function Index() {
       helperText: 'Synced from Rider Profile. Editable for this calculation.',
       icon: 'person' as const,
     },
+    {
+      key: 'gapDistance',
+      title: 'Gap Distance',
+      label: 'Gap Distance (ft)',
+      value: gapDistance,
+      onChangeText: setGapDistance,
+      placeholder: '0 - 100 ft',
+      keyboardType: 'decimal-pad' as const,
+      required: true,
+      helperText: useMetric
+        ? 'Converted to meters for this calculation.'
+        : 'A value above 0 is required to calculate.',
+      icon: 'resize' as const,
+    },
   ];
   const currentInputStep = inputSteps[inputStep];
+  const isGapDistanceStep = currentInputStep.key === 'gapDistance';
+  const gapSliderValue = Math.min(100, Math.max(0, Number.parseFloat(gapDistance) || 0));
 
   const advanceInputStep = () => {
     if (!currentInputStep) {
@@ -1429,34 +1434,84 @@ export default function Index() {
               </View>
 
               <View
-                style={styles.inputWizardCard}
+                style={[
+                  styles.inputWizardCard,
+                  isGapDistanceStep && styles.gapSliderCard,
+                ]}
               >
                 <Ionicons name={currentInputStep.icon} size={30} color="#A6D608" />
                 <Text style={styles.inputWizardTitle}>{currentInputStep.title}</Text>
-                <Text style={styles.inputWizardDescription}>
-                  {currentInputStep.required ? 'Required for your calculation' : 'Optional'}
-                </Text>
+                {!isGapDistanceStep && (
+                  <Text style={styles.inputWizardDescription}>
+                    {currentInputStep.required ? 'Required for your calculation' : 'Optional'}
+                  </Text>
+                )}
                 <Text style={styles.inputWizardLabel}>
                   {currentInputStep.label}
                   {currentInputStep.required && <Text style={styles.required}> *</Text>}
                 </Text>
-                <TextInput
-                  key={currentInputStep.key}
-                  accessibilityLabel={currentInputStep.label}
-                  style={[
-                    styles.inputWizardInput,
-                    focusedField === currentInputStep.key && styles.inputFocused,
-                  ]}
-                  value={currentInputStep.value}
-                  onChangeText={currentInputStep.onChangeText}
-                  onFocus={() => setFocusedField(currentInputStep.key)}
-                  onBlur={() => setFocusedField(null)}
-                  placeholder={currentInputStep.placeholder}
-                  placeholderTextColor="#9AADB0"
-                  keyboardType={currentInputStep.keyboardType}
-                  returnKeyType="done"
-                  autoFocus
-                />
+                {isGapDistanceStep ? (
+                  <View style={styles.gapSliderContainer}>
+                    <Text style={styles.gapSliderValue}>{gapSliderValue} ft</Text>
+                    <View style={styles.gapSliderControlRow}>
+                      <View style={styles.gapSliderTrackContainer}>
+                        <Slider
+                          accessibilityLabel="Gap distance in feet"
+                          accessibilityValue={{ min: 0, max: 100, now: gapSliderValue }}
+                          maximumTrackTintColor="#35515A"
+                          maximumValue={100}
+                          minimumTrackTintColor="#A6D608"
+                          minimumValue={0}
+                          onValueChange={(value) => setGapDistance(String(Math.round(value)))}
+                          step={1}
+                          style={styles.gapSlider}
+                          testID="gap-distance-slider"
+                          thumbSize={28}
+                          thumbTintColor="#D4F66E"
+                          value={gapSliderValue}
+                        />
+                        <View style={styles.gapSliderRange}>
+                          <Text style={styles.gapSliderRangeText}>0 ft</Text>
+                          <Text style={styles.gapSliderRangeText}>100 ft</Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel="Submit jump calculation"
+                        onPress={calculateSpeed}
+                        disabled={isLoading}
+                        style={[styles.inputWizardNextButton, styles.gapSliderSubmitButton]}
+                      >
+                        {isLoading ? (
+                          <ActivityIndicator color="#07111E" />
+                        ) : (
+                          <>
+                            <Text style={styles.inputWizardNextText}>How Fast?</Text>
+                            <Ionicons name="calculator" size={20} color="#07111E" />
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <TextInput
+                    key={currentInputStep.key}
+                    accessibilityLabel={currentInputStep.label}
+                    style={[
+                      styles.inputWizardInput,
+                      focusedField === currentInputStep.key && styles.inputFocused,
+                    ]}
+                    value={currentInputStep.value}
+                    onChangeText={currentInputStep.onChangeText}
+                    onFocus={() => setFocusedField(currentInputStep.key)}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder={currentInputStep.placeholder}
+                    placeholderTextColor="#9AADB0"
+                    keyboardType={currentInputStep.keyboardType}
+                    returnKeyType="done"
+                    autoFocus
+                  />
+                )}
                 {!!currentInputStep.helperText && (
                   <Text style={styles.inputWizardHelper}>{currentInputStep.helperText}</Text>
                 )}
@@ -1488,27 +1543,17 @@ export default function Index() {
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                accessibilityRole="button"
-                onPress={inputStep === inputSteps.length - 1 ? calculateSpeed : advanceInputStep}
-                disabled={isLoading}
-                style={styles.inputWizardNextButton}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color="#07111E" />
-                ) : (
-                  <>
-                    <Text style={styles.inputWizardNextText}>
-                      {inputStep === inputSteps.length - 1 ? 'How Fast?' : 'Next'}
-                    </Text>
-                    <Ionicons
-                      name={inputStep === inputSteps.length - 1 ? 'calculator' : 'arrow-forward'}
-                      size={20}
-                      color="#07111E"
-                    />
-                  </>
-                )}
-              </TouchableOpacity>
+              {!isGapDistanceStep && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={advanceInputStep}
+                  disabled={isLoading}
+                  style={styles.inputWizardNextButton}
+                >
+                  <Text style={styles.inputWizardNextText}>Next</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#07111E" />
+                </TouchableOpacity>
+              )}
           </View>
 
           {/* Results page */}
@@ -2155,6 +2200,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 22,
   },
+  gapSliderCard: {
+    minHeight: 0,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+  },
   inputWizardTitle: {
     marginTop: 10,
     color: '#F5FAF8',
@@ -2187,6 +2237,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     borderWidth: 1,
     borderColor: '#A6D608',
+  },
+  gapSliderContainer: {
+    alignSelf: 'stretch',
+    marginTop: 4,
+  },
+  gapSliderControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  gapSliderTrackContainer: {
+    flex: 1,
+  },
+  gapSliderValue: {
+    color: '#D4F66E',
+    fontSize: 30,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+  },
+  gapSlider: {
+    width: '100%',
+    height: 40,
+  },
+  gapSliderRange: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: -4,
+    paddingHorizontal: 2,
+  },
+  gapSliderRangeText: {
+    color: '#9AADB0',
+    fontSize: 12,
+    fontWeight: '700',
   },
   inputWizardHelper: {
     alignSelf: 'stretch',
@@ -2237,6 +2321,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 14,
     marginBottom: 8,
+  },
+  gapSliderSubmitButton: {
+    flexShrink: 0,
+    width: 116,
+    minHeight: 50,
+    marginTop: 0,
+    marginBottom: 0,
+    paddingHorizontal: 10,
   },
   inputWizardNextText: {
     color: '#07111E',
