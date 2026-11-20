@@ -842,14 +842,51 @@ export default function Index() {
   ];
   const currentInputStep = inputSteps[inputStep];
   const isGapDistanceStep = currentInputStep.key === 'gapDistance';
-  const gapSliderValue = Math.min(100, Math.max(0, Number.parseFloat(gapDistance) || 0));
+  const currentSlider =
+    currentInputStep.key === 'rampHeight'
+      ? {
+          accessibilityLabel: 'Ramp height',
+          min: 0,
+          max: useMetric ? 6 : 20,
+          step: 0.1,
+          value: Math.min(
+            useMetric ? 6 : 20,
+            Math.max(0, Number.parseFloat(rampHeight) || 0)
+          ),
+          formatValue: (value: number) => `${value.toFixed(1)} ${distanceUnit}`,
+          onValueChange: (value: number) => setRampHeight(value.toFixed(1)),
+        }
+      : currentInputStep.key === 'rampAngle'
+        ? {
+            accessibilityLabel: 'Ramp angle',
+            min: 1,
+            max: 89,
+            step: 1,
+            value: Math.min(89, Math.max(1, Number.parseFloat(rampAngle) || 1)),
+            formatValue: (value: number) => `${Math.round(value)}°`,
+            onValueChange: (value: number) => setRampAngle(String(Math.round(value))),
+          }
+        : currentInputStep.key === 'gapDistance'
+          ? {
+              accessibilityLabel: 'Gap distance in feet',
+              min: 0,
+              max: 100,
+              step: 1,
+              value: Math.min(100, Math.max(0, Number.parseFloat(gapDistance) || 0)),
+              formatValue: (value: number) => `${Math.round(value)} ft`,
+              onValueChange: (value: number) => setGapDistance(String(Math.round(value))),
+            }
+          : null;
+  const isSliderStep = currentSlider !== null;
 
   const advanceInputStep = () => {
     if (!currentInputStep) {
       return;
     }
 
-    const value = currentInputStep.value.trim();
+    const value = currentSlider
+      ? currentInputStep.value.trim() || String(currentSlider.value)
+      : currentInputStep.value.trim();
     const number = Number(value);
     if (currentInputStep.required && !value) {
       Alert.alert('Missing Information', `${currentInputStep.label} is required.`);
@@ -875,6 +912,9 @@ export default function Index() {
       return;
     }
 
+    if (currentSlider && !currentInputStep.value.trim()) {
+      currentInputStep.onChangeText(String(currentSlider.value));
+    }
     setFocusedField(null);
     setInputStep((step) => Math.min(step + 1, inputSteps.length - 1));
   };
@@ -1436,12 +1476,12 @@ export default function Index() {
               <View
                 style={[
                   styles.inputWizardCard,
-                  isGapDistanceStep && styles.gapSliderCard,
+                  isSliderStep && styles.inputSliderCard,
                 ]}
               >
                 <Ionicons name={currentInputStep.icon} size={30} color="#A6D608" />
                 <Text style={styles.inputWizardTitle}>{currentInputStep.title}</Text>
-                {!isGapDistanceStep && (
+                {!isSliderStep && (
                   <Text style={styles.inputWizardDescription}>
                     {currentInputStep.required ? 'Required for your calculation' : 'Optional'}
                   </Text>
@@ -1450,47 +1490,59 @@ export default function Index() {
                   {currentInputStep.label}
                   {currentInputStep.required && <Text style={styles.required}> *</Text>}
                 </Text>
-                {isGapDistanceStep ? (
-                  <View style={styles.gapSliderContainer}>
-                    <Text style={styles.gapSliderValue}>{gapSliderValue} ft</Text>
-                    <View style={styles.gapSliderControlRow}>
-                      <View style={styles.gapSliderTrackContainer}>
+                {currentSlider ? (
+                  <View style={styles.inputSliderContainer}>
+                    <Text style={styles.inputSliderValue}>
+                      {currentSlider.formatValue(currentSlider.value)}
+                    </Text>
+                    <View style={styles.inputSliderControlRow}>
+                      <View style={styles.inputSliderTrackContainer}>
                         <Slider
-                          accessibilityLabel="Gap distance in feet"
-                          accessibilityValue={{ min: 0, max: 100, now: gapSliderValue }}
+                          accessibilityLabel={currentSlider.accessibilityLabel}
+                          accessibilityValue={{
+                            min: currentSlider.min,
+                            max: currentSlider.max,
+                            now: currentSlider.value,
+                          }}
                           maximumTrackTintColor="#35515A"
-                          maximumValue={100}
+                          maximumValue={currentSlider.max}
                           minimumTrackTintColor="#A6D608"
-                          minimumValue={0}
-                          onValueChange={(value) => setGapDistance(String(Math.round(value)))}
-                          step={1}
-                          style={styles.gapSlider}
-                          testID="gap-distance-slider"
+                          minimumValue={currentSlider.min}
+                          onValueChange={currentSlider.onValueChange}
+                          step={currentSlider.step}
+                          style={styles.inputSlider}
+                          testID={`${currentInputStep.key}-slider`}
                           thumbSize={28}
                           thumbTintColor="#D4F66E"
-                          value={gapSliderValue}
+                          value={currentSlider.value}
                         />
-                        <View style={styles.gapSliderRange}>
-                          <Text style={styles.gapSliderRangeText}>0 ft</Text>
-                          <Text style={styles.gapSliderRangeText}>100 ft</Text>
+                        <View style={styles.inputSliderRange}>
+                          <Text style={styles.inputSliderRangeText}>
+                            {currentSlider.formatValue(currentSlider.min)}
+                          </Text>
+                          <Text style={styles.inputSliderRangeText}>
+                            {currentSlider.formatValue(currentSlider.max)}
+                          </Text>
                         </View>
                       </View>
-                      <TouchableOpacity
-                        accessibilityRole="button"
-                        accessibilityLabel="Submit jump calculation"
-                        onPress={calculateSpeed}
-                        disabled={isLoading}
-                        style={[styles.inputWizardNextButton, styles.gapSliderSubmitButton]}
-                      >
-                        {isLoading ? (
-                          <ActivityIndicator color="#07111E" />
-                        ) : (
-                          <>
-                            <Text style={styles.inputWizardNextText}>How Fast?</Text>
-                            <Ionicons name="calculator" size={20} color="#07111E" />
-                          </>
-                        )}
-                      </TouchableOpacity>
+                      {isGapDistanceStep && (
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          accessibilityLabel="Submit jump calculation"
+                          onPress={calculateSpeed}
+                          disabled={isLoading}
+                          style={[styles.inputWizardNextButton, styles.gapSliderSubmitButton]}
+                        >
+                          {isLoading ? (
+                            <ActivityIndicator color="#07111E" />
+                          ) : (
+                            <>
+                              <Text style={styles.inputWizardNextText}>How Fast?</Text>
+                              <Ionicons name="calculator" size={20} color="#07111E" />
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 ) : (
@@ -2200,7 +2252,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 22,
   },
-  gapSliderCard: {
+  inputSliderCard: {
     minHeight: 0,
     paddingVertical: 14,
     paddingHorizontal: 18,
@@ -2238,36 +2290,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#A6D608',
   },
-  gapSliderContainer: {
+  inputSliderContainer: {
     alignSelf: 'stretch',
     marginTop: 4,
   },
-  gapSliderControlRow: {
+  inputSliderControlRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  gapSliderTrackContainer: {
+  inputSliderTrackContainer: {
     flex: 1,
   },
-  gapSliderValue: {
+  inputSliderValue: {
     color: '#D4F66E',
     fontSize: 30,
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
   },
-  gapSlider: {
+  inputSlider: {
     width: '100%',
     height: 40,
   },
-  gapSliderRange: {
+  inputSliderRange: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: -4,
     paddingHorizontal: 2,
   },
-  gapSliderRangeText: {
+  inputSliderRangeText: {
     color: '#9AADB0',
     fontSize: 12,
     fontWeight: '700',
