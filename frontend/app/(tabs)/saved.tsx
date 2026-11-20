@@ -12,6 +12,7 @@ import {
   Share,
   TextInput,
   Modal,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -28,13 +29,23 @@ import {
   SavedCalculation,
   RiderProfileData,
 } from '@/lib/appSupport';
-import { useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
+import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
 
 const { width } = Dimensions.get('window');
 
 export default function SavedScreen() {
   const router = useRouter();
-  const savedListGuideTarget = useBeginnerGuideTarget('saved');
+  const { reportGuideTarget } = useBeginnerGuide();
+  const savedListGuideTargetRef = useRef<View>(null);
+  const reportSavedListGuideTarget = useCallback(() => {
+    requestAnimationFrame(() => {
+      savedListGuideTargetRef.current?.measureInWindow((x, y, width, height) => {
+        if (width > 0 && height > 0) {
+          reportGuideTarget({ routeName: 'saved', x: x + width / 2, y: y + height / 2 });
+        }
+      });
+    });
+  }, [reportGuideTarget]);
   const [calculations, setCalculations] = useState<SavedCalculation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -527,10 +538,13 @@ export default function SavedScreen() {
       
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
-          <View>
-            <Text style={styles.headerEyebrow}>HRC // RIDE LOG</Text>
-            <Text style={styles.title}>Saved Calculations</Text>
-          </View>
+          <Image
+            source={require('../../assets/images/wreckless-saved-spots.jpeg')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+            accessible
+            accessibilityLabel="Wreck-Less Saved Spots"
+          />
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={[styles.lookupButton, showSearch && styles.lookupButtonActive]}
@@ -624,8 +638,8 @@ export default function SavedScreen() {
       )}
 
       <View
-        ref={savedListGuideTarget.ref}
-        onLayout={savedListGuideTarget.onLayout}
+        ref={savedListGuideTargetRef}
+        onLayout={reportSavedListGuideTarget}
         collapsable={false}
         style={styles.listHeading}
       >
@@ -740,20 +754,25 @@ export default function SavedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#15191E',
+    backgroundColor: '#071522',
   },
   header: {
     paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 13,
-    backgroundColor: '#1C2229',
+    paddingTop: 8,
+    paddingBottom: 8,
+    backgroundColor: '#101E2C',
     borderBottomWidth: 2,
-    borderBottomColor: '#A6D608',
+    borderBottomColor: '#31566A',
   },
   headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  headerLogo: {
+    flex: 1,
+    height: 118,
+    marginRight: 4,
   },
   headerEyebrow: {
     color: '#A6D608',

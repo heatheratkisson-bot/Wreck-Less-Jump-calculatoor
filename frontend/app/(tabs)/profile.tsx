@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -36,14 +36,24 @@ import {
   selectRiderBikeProfile,
 } from '@/lib/appSupport';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
+import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
 
 const MAX_SAVED_PROFILES = 3;
 type BikePickerField = 'year' | 'brand' | 'model';
 
 export default function Profile() {
   const router = useRouter();
-  const savedBikesGuideTarget = useBeginnerGuideTarget('profile');
+  const { reportGuideTarget } = useBeginnerGuide();
+  const savedBikesGuideTargetRef = useRef<View>(null);
+  const reportSavedBikesGuideTarget = useCallback(() => {
+    requestAnimationFrame(() => {
+      savedBikesGuideTargetRef.current?.measureInWindow((x, y, width, height) => {
+        if (width > 0 && height > 0) {
+          reportGuideTarget({ routeName: 'profile', x: x + width / 2, y: y + height / 2 });
+        }
+      });
+    });
+  }, [reportGuideTarget]);
   const { openJumpLog } = useLocalSearchParams<{ openJumpLog?: string }>();
   const [profiles, setProfiles] = useState<SavedBikeProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
@@ -368,13 +378,13 @@ export default function Profile() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <Ionicons name="bicycle" size={28} color="#A6D608" />
-          </View>
-          <View>
-            <Text style={styles.title}>Rider Profile</Text>
-            <Text style={styles.subtitle}>Your bikes and jump history</Text>
-          </View>
+          <Image
+            source={require('../../assets/images/wreckless-profile.jpeg')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+            accessible
+            accessibilityLabel="Wreck-Less Profile"
+          />
         </View>
 
         <View style={styles.detailsCard}>
@@ -409,8 +419,8 @@ export default function Profile() {
         </View>
 
         <View
-          ref={savedBikesGuideTarget.ref}
-          onLayout={savedBikesGuideTarget.onLayout}
+          ref={savedBikesGuideTargetRef}
+          onLayout={reportSavedBikesGuideTarget}
           collapsable={false}
           style={styles.sectionHeading}
         >
@@ -870,15 +880,16 @@ function StatCard({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#081116' },
+  container: { flex: 1, backgroundColor: '#071522' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#081116' },
-  scrollContent: { padding: 20, paddingBottom: 36 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 28 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 36 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  headerLogo: { width: '78%', height: 82 },
   headerIcon: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#1B3038' },
   title: { color: '#F5FAF8', fontSize: 24, fontWeight: '800' },
   subtitle: { color: '#C2D0CE', fontSize: 13, marginTop: 3 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle: { color: '#F5FAF8', fontSize: 19, fontWeight: '700' },
+  sectionTitle: { color: '#69D2F1', fontSize: 20, fontWeight: '900', fontStyle: 'italic' },
   sectionHint: { color: '#9AADB0', fontSize: 12, marginTop: 4 },
   slotBadge: { color: '#A6D608', backgroundColor: 'rgba(166, 214, 8, 0.1)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, fontSize: 12, fontWeight: '700' },
   profileCard: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#35515A', borderRadius: 16, backgroundColor: '#1B3038' },
@@ -892,8 +903,8 @@ const styles = StyleSheet.create({
   profileMeta: { color: '#C2D0CE', fontSize: 12, marginTop: 3 },
   profileRecord: { color: '#9AADB0', fontSize: 11, marginTop: 5 },
   removeButton: { width: 34, height: 38, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
-  addBikeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: 50, marginBottom: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: '#405C65', borderRadius: 14 },
-  addBikeText: { color: '#A6D608', fontSize: 14, fontWeight: '700' },
+  addBikeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: 52, marginBottom: 20, borderWidth: 2, borderStyle: 'dashed', borderColor: '#69D2F1', borderRadius: 18, backgroundColor: '#102638' },
+  addBikeText: { color: '#69D2F1', fontSize: 16, fontWeight: '900', fontStyle: 'italic' },
   activeBikeCard: { padding: 16, marginTop: 10, borderWidth: 1, borderColor: '#35515A', borderRadius: 18, backgroundColor: '#14262D' },
   activeBikeHeading: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   activeBikeIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: 8, borderRadius: 14, backgroundColor: 'rgba(166, 214, 8, 0.12)', overflow: 'hidden' },
@@ -909,12 +920,12 @@ const styles = StyleSheet.create({
   statLabel: { color: '#C2D0CE', fontSize: 11, textAlign: 'center', marginTop: 4 },
   logJumpButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48, marginTop: 16, borderRadius: 12, backgroundColor: '#A6D608' },
   logJumpText: { color: '#000000', fontSize: 14, fontWeight: '700' },
-  detailsCard: { padding: 16, marginTop: 14, borderRadius: 16, backgroundColor: '#1B3038' },
+  detailsCard: { padding: 16, marginTop: 10, borderWidth: 3, borderColor: '#547D91', borderRadius: 16, backgroundColor: '#102638', shadowColor: '#3CC9FF', shadowOpacity: 0.12, shadowRadius: 8 },
   riderWeightInput: { marginTop: 12 },
-  detailTitle: { color: '#F5FAF8', fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  detailText: { color: '#C2D0CE', fontSize: 13, lineHeight: 20, marginTop: 3 },
-  emptyCard: { alignItems: 'center', padding: 28, marginTop: 12, borderRadius: 18, backgroundColor: '#1B3038' },
-  emptyTitle: { color: '#F5FAF8', fontSize: 17, fontWeight: '700', marginTop: 12 },
+  detailTitle: { color: '#69D2F1', fontSize: 20, fontWeight: '900', fontStyle: 'italic', marginBottom: 4 },
+  detailText: { color: '#F5FAF8', fontSize: 13, lineHeight: 20, marginTop: 3 },
+  emptyCard: { alignItems: 'center', padding: 28, marginTop: 12, borderWidth: 3, borderColor: '#547D91', borderRadius: 18, backgroundColor: '#102638', shadowColor: '#3CC9FF', shadowOpacity: 0.12, shadowRadius: 8 },
+  emptyTitle: { color: '#69D2F1', fontSize: 20, fontWeight: '900', fontStyle: 'italic', marginTop: 12 },
   emptyText: { color: '#C2D0CE', fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 7 },
   modalContainer: { flex: 1, backgroundColor: '#081116' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: 1, borderBottomColor: '#35515A' },
@@ -936,10 +947,10 @@ const styles = StyleSheet.create({
   specPreviewText: { color: '#8BD6A7', fontSize: 13, fontWeight: '600' },
   catalogNote: { color: '#C2D0CE', fontSize: 12, lineHeight: 18, marginTop: 12 },
   calculationNote: { color: '#E8B86D', fontSize: 12, lineHeight: 18, marginTop: 12 },
-  formInput: { minHeight: 48, paddingHorizontal: 12, borderWidth: 1, borderColor: '#405C65', borderRadius: 10, backgroundColor: '#1B3038', color: '#F5FAF8', fontSize: 15 },
+  formInput: { minHeight: 52, paddingHorizontal: 14, borderWidth: 2, borderColor: '#31566A', borderRadius: 10, backgroundColor: '#142D40', color: '#F5FAF8', fontSize: 18, fontStyle: 'italic', fontWeight: '700' },
   manualEntryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
   manualEntryText: { color: '#A6D608', fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  saveBikeButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4, borderRadius: 12, backgroundColor: '#A6D608' },
+  saveBikeButton: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8, borderWidth: 2, borderColor: '#F1F08A', borderRadius: 12, backgroundColor: '#D8DB5A' },
   saveBikeButtonDisabled: { opacity: 0.55 },
   saveBikeButtonText: { color: '#000000', fontSize: 15, fontWeight: '800' },
   pickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(3, 12, 16, 0.75)' },

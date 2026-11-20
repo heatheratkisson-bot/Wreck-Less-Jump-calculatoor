@@ -1376,9 +1376,13 @@ export default function Index() {
           style={styles.sloganHeader}
         >
           <View style={styles.sloganCopy}>
-            <Text style={styles.sloganFirstLine}>
-              <Text style={styles.brandName}>WreckLess</Text> Jump Calculator
-            </Text>
+            <Image
+              source={require('../../assets/images/wreckless-jump-calculator.jpeg')}
+              style={styles.headerLogo}
+              resizeMode="contain"
+              accessible
+              accessibilityLabel="Wreck-Less Jump Calculator"
+            />
           </View>
           <TouchableOpacity
             accessibilityRole="button"
@@ -2048,16 +2052,20 @@ const styles = StyleSheet.create({
   sloganHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 50,
-    paddingVertical: 5,
-    paddingHorizontal: 16,
-    backgroundColor: '#101D2B',
-    borderBottomWidth: 1,
-    borderBottomColor: '#26384B',
+    minHeight: 68,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: '#101E2C',
+    borderBottomWidth: 2,
+    borderBottomColor: '#31566A',
   },
   sloganCopy: {
     flex: 1,
     alignItems: 'flex-start',
+  },
+  headerLogo: {
+    width: 210,
+    height: 60,
   },
   instructionsButton: {
     width: 36,
@@ -2082,10 +2090,10 @@ const styles = StyleSheet.create({
   controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginHorizontal: 10,
-    marginTop: 8,
-    marginBottom: 6,
+    marginTop: 6,
+    marginBottom: 8,
   },
   wideControlsRow: {
     marginTop: 6,
@@ -2096,21 +2104,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 2,
     padding: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#26384B',
-    backgroundColor: '#0B1828',
+    minHeight: 46,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#31566A',
+    backgroundColor: '#13293A',
   },
   inputMethodTab: {
     flex: 1,
-    minHeight: 34,
+    minHeight: 38,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
     borderRadius: 9,
   },
   inputMethodTabActive: {
-    backgroundColor: '#A6D608',
+    backgroundColor: '#C8D95A',
+    borderWidth: 1,
+    borderColor: '#EFF59B',
   },
   inputMethodTitle: {
     color: '#A8B5C4',
@@ -2217,8 +2228,8 @@ const styles = StyleSheet.create({
   },
   inputWizard: {
     flex: 1,
-    gap: 14,
-    paddingTop: 10,
+    gap: 10,
+    paddingTop: 6,
     paddingBottom: 16,
   },
   inputWizardProgress: {
@@ -2231,10 +2242,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   inputWizardProgressTrack: {
-    height: 6,
+    height: 8,
     overflow: 'hidden',
-    borderRadius: 3,
-    backgroundColor: '#26384B',
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: '#31566A',
+    backgroundColor: '#13293A',
   },
   inputWizardProgressFill: {
     height: '100%',
@@ -2243,25 +2256,30 @@ const styles = StyleSheet.create({
   },
   inputWizardCard: {
     flex: 1,
-    minHeight: 270,
+    minHeight: 250,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0F1D2D',
-    borderColor: '#26384B',
-    borderWidth: 1,
+    backgroundColor: '#13273A',
+    borderColor: '#547D91',
+    borderWidth: 3,
     borderRadius: 16,
-    padding: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    shadowColor: '#3CC9FF',
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
   },
   inputSliderCard: {
     minHeight: 0,
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: 18,
   },
   inputWizardTitle: {
-    marginTop: 10,
+    marginTop: 4,
     color: '#F5FAF8',
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 28,
+    fontWeight: '900',
+    fontStyle: 'italic',
     textAlign: 'center',
   },
   inputWizardDescription: {
@@ -2304,7 +2322,7 @@ const styles = StyleSheet.create({
   },
   inputSliderValue: {
     color: '#D4F66E',
-    fontSize: 30,
+    fontSize: 34,
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
@@ -2363,13 +2381,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   inputWizardNextButton: {
-    minHeight: 56,
+    minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: '#A6D608',
-    borderRadius: 12,
+    backgroundColor: '#D0D45A',
+    borderWidth: 3,
+    borderTopColor: '#EEF08B',
+    borderBottomColor: '#777B31',
+    borderLeftColor: '#B7BA4D',
+    borderRightColor: '#B7BA4D',
+    borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 14,
     marginBottom: 8,
@@ -2941,8 +2964,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#0A1522',
-    borderTopWidth: 1,
-    borderTopColor: '#263649',
+    borderTopWidth: 2,
+    borderTopColor: '#31566A',
     paddingHorizontal: 16,
     paddingVertical: 9,
     gap: 8,

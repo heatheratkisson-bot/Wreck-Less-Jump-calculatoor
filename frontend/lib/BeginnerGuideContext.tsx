@@ -27,9 +27,6 @@ export function useBeginnerGuide() {
 export function useBeginnerGuideTarget(routeName: string) {
   const { reportGuideTarget } = useBeginnerGuide();
   const targetRef = useRef<NativeView>(null);
-  const setTargetRef = useCallback((view: NativeView | null) => {
-    targetRef.current = view;
-  }, []);
   const onLayout = useCallback(() => {
     requestAnimationFrame(() => {
       targetRef.current?.measureInWindow((x, y, width, height) => {
@@ -44,5 +41,5 @@ export function useBeginnerGuideTarget(routeName: string) {
     });
   }, [reportGuideTarget, routeName]);
 
-  return { ref: setTargetRef, onLayout };
+  return { ref: targetRef, onLayout };
 }

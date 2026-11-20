@@ -8,6 +8,7 @@ import {
   ScrollView,
   RefreshControl,
   Modal,
+  Image,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -489,7 +490,13 @@ export default function MapScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Jump Locations</Text>
+        <Image
+          source={require('../../assets/images/wreckless-explore.jpeg')}
+          style={styles.headerLogo}
+          resizeMode="contain"
+          accessible
+          accessibilityLabel="Wreck-Less Explore"
+        />
         <Text style={styles.subtitle}>{locations.length} saved locations</Text>
       </View>
 
@@ -618,13 +625,19 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#081116',
+    backgroundColor: '#071522',
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#28434B',
+    paddingVertical: 8,
+    backgroundColor: '#101E2C',
+    borderBottomWidth: 2,
+    borderBottomColor: '#31566A',
+  },
+  headerLogo: {
+    width: '92%',
+    alignSelf: 'center',
+    height: 118,
   },
   title: {
     fontSize: 24,

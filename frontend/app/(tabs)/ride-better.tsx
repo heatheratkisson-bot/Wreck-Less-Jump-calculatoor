@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -11,13 +11,14 @@ import {
   Text,
   TextInput,
   View,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SKILL_CATEGORIES, SKILL_SOURCES } from '@/lib/rideBetterSkills';
 import type { SkillCategory } from '@/lib/rideBetterSkills';
 import SkillHeroPhoto from '@/components/SkillHeroPhoto';
-import { useBeginnerGuideTarget } from '@/lib/BeginnerGuideContext';
+import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
 
 const RIDING_LOCATION_KEY = 'wreckless_ride_better_location_v1';
 const CHP_MOTORCYCLE_SAFETY_URL =
@@ -70,7 +71,17 @@ const SAFETY_GUIDES = [
 ];
 
 export default function RideBetterScreen() {
-  const sectionTabsGuideTarget = useBeginnerGuideTarget('ride-better');
+  const { reportGuideTarget } = useBeginnerGuide();
+  const sectionTabsGuideTargetRef = useRef<View>(null);
+  const reportSectionTabsGuideTarget = useCallback(() => {
+    requestAnimationFrame(() => {
+      sectionTabsGuideTargetRef.current?.measureInWindow((x, y, width, height) => {
+        if (width > 0 && height > 0) {
+          reportGuideTarget({ routeName: 'ride-better', x: x + width / 2, y: y + height / 2 });
+        }
+      });
+    });
+  }, [reportGuideTarget]);
   const [selectedCategory, setSelectedCategory] = useState<SkillCategory | null>(null);
   const [section, setSection] = useState<RideSection>('safety');
   const [ridingLocation, setRidingLocation] = useState('Kern County, California');
@@ -135,13 +146,13 @@ export default function RideBetterScreen() {
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <Ionicons name="school" size={26} color="#A6D608" />
-          </View>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>Ride Better</Text>
-            <Text style={styles.subtitle}>Skills and safety for every ride</Text>
-          </View>
+          <Image
+            source={require('../../assets/images/wreckless-skills-safety.jpeg')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+            accessible
+            accessibilityLabel="Wreck-Less Skills and Safety"
+          />
         </View>
 
         <View
@@ -163,8 +174,8 @@ export default function RideBetterScreen() {
         </View>
 
         <View
-          ref={sectionTabsGuideTarget.ref}
-          onLayout={sectionTabsGuideTarget.onLayout}
+          ref={sectionTabsGuideTargetRef}
+          onLayout={reportSectionTabsGuideTarget}
           collapsable={false}
           style={styles.sectionTabs}
           accessibilityRole="tablist"
@@ -431,17 +442,22 @@ export default function RideBetterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#081116',
+    backgroundColor: '#071522',
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
     paddingBottom: 32,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    marginBottom: 20,
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  headerLogo: {
+    width: '92%',
+    height: 118,
   },
   headerIcon: {
     width: 54,

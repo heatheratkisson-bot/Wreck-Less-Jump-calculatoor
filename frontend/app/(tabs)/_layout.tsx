@@ -65,11 +65,11 @@ const APP_THEME = {
 };
 
 const routeLabelMap: Record<string, string> = {
-  index: 'How Fast',
-  'ride-better': 'Ride Better',
-  saved: 'My Jumps',
-  map: 'Nearby Jumps',
-  profile: 'My Bike',
+  index: 'Jump Calculator',
+  'ride-better': 'Skills & Safety',
+  saved: 'Saved Spots',
+  map: 'Explore',
+  profile: 'Profile',
 };
 
 const routeIconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -141,7 +141,13 @@ function CustomTabBar({
             style={[
               styles.tabButton,
               isFocused && {
-                backgroundColor: APP_THEME.accent,
+                backgroundColor: '#D0D45A',
+                borderWidth: 3,
+                borderTopColor: '#E8EC86',
+                borderBottomColor: '#777B31',
+                borderLeftColor: '#AEB14B',
+                borderRightColor: '#AEB14B',
+                borderRadius: 7,
               },
               isGuideTarget && styles.guideTabButton,
             ]}
@@ -319,13 +325,13 @@ export default function TabLayout() {
           <Tabs.Screen
             name="index"
             options={{
-              title: 'How Fast',
+              title: 'Jump Calculator',
             }}
           />
           <Tabs.Screen
             name="ride-better"
             options={{
-              title: 'Ride Better',
+              title: 'Skills & Safety',
             }}
           />
           <Tabs.Screen
@@ -337,19 +343,19 @@ export default function TabLayout() {
           <Tabs.Screen
             name="saved"
             options={{
-              title: 'My Jumps',
+              title: 'Saved Spots',
             }}
           />
           <Tabs.Screen
             name="map"
             options={{
-              title: 'Nearby Jumps',
+              title: 'Explore',
             }}
           />
           <Tabs.Screen
             name="profile"
             options={{
-              title: 'My Bike',
+              title: 'Profile',
             }}
           />
           <Tabs.Screen
@@ -568,24 +574,39 @@ const styles = StyleSheet.create({
   tabRail: {
     width: '100%',
     flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingTop: 8,
+    borderTopWidth: 3,
+    borderTopColor: '#52768A',
+    paddingTop: 6,
     paddingHorizontal: 4,
     justifyContent: 'space-around',
+    backgroundColor: '#173044',
+    shadowColor: '#5EC9F2',
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 8,
   },
   tabButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 2,
+    minHeight: 58,
+    marginHorizontal: 1,
     paddingHorizontal: 2,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingVertical: 4,
+    borderWidth: 2,
+    borderTopColor: '#7BA0B2',
+    borderBottomColor: '#0A1A24',
+    borderLeftColor: '#36596C',
+    borderRightColor: '#36596C',
+    borderRadius: 8,
+    backgroundColor: '#1B3447',
   },
   tabLabel: {
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    letterSpacing: 0,
     textAlign: 'center',
   },
   tutorialOverlay: {
