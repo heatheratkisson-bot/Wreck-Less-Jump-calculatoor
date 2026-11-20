@@ -55,13 +55,13 @@ const TUTORIAL_STEPS = [
 ];
 
 const APP_THEME = {
-  accent: '#A6D608',
-  accentSoft: '#A6D608',
-  tabBar: '#0F2026',
-  tabBarBorder: '#35515A',
-  inactive: '#C2D0CE',
+  accent: '#b7d82b',
+  accentSoft: '#dff56b',
+  tabBar: '#080d12',
+  tabBarBorder: '#00d8ff',
+  inactive: '#9fb1b9',
   text: '#F5FAF8',
-  panel: '#1B3038',
+  panel: '#101923',
 };
 
 const routeLabelMap: Record<string, string> = {
@@ -141,13 +141,16 @@ function CustomTabBar({
             style={[
               styles.tabButton,
               isFocused && {
-                backgroundColor: '#D0D45A',
-                borderWidth: 3,
-                borderTopColor: '#E8EC86',
-                borderBottomColor: '#777B31',
-                borderLeftColor: '#AEB14B',
-                borderRightColor: '#AEB14B',
+                backgroundColor: '#b7d82b',
+                borderWidth: 2,
+                borderTopColor: '#efff96',
+                borderBottomColor: '#667a16',
+                borderLeftColor: '#94b421',
+                borderRightColor: '#94b421',
                 borderRadius: 7,
+                shadowColor: '#b7d82b',
+                shadowOpacity: 0.45,
+                shadowRadius: 8,
               },
               isGuideTarget && styles.guideTabButton,
             ]}
@@ -184,6 +187,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [fontsLoaded, fontError] = useFonts({
+    ...Ionicons.font,
     TekoBold: require('../../assets/fonts/Teko-Bold.ttf'),
   });
   const [tutorialStep, setTutorialStep] = useState(0);
@@ -211,7 +215,7 @@ export default function TabLayout() {
 
   useEffect(() => {
     if (fontError) {
-      console.error('Could not load the beginner guide font:', fontError);
+      console.error('Could not load app fonts:', fontError);
     }
   }, [fontError]);
 
@@ -574,15 +578,15 @@ const styles = StyleSheet.create({
   tabRail: {
     width: '100%',
     flexDirection: 'row',
-    borderTopWidth: 3,
-    borderTopColor: '#52768A',
+    borderTopWidth: 2,
+    borderTopColor: '#00d8ff',
     paddingTop: 6,
     paddingHorizontal: 4,
     justifyContent: 'space-around',
-    backgroundColor: '#173044',
-    shadowColor: '#5EC9F2',
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
+    backgroundColor: '#080d12',
+    shadowColor: '#38bdf8',
+    shadowOpacity: 0.32,
+    shadowRadius: 10,
     elevation: 8,
   },
   tabButton: {
@@ -594,19 +598,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 1,
     paddingHorizontal: 2,
     paddingVertical: 4,
-    borderWidth: 2,
-    borderTopColor: '#7BA0B2',
-    borderBottomColor: '#0A1A24',
-    borderLeftColor: '#36596C',
-    borderRightColor: '#36596C',
-    borderRadius: 8,
-    backgroundColor: '#1B3447',
+    borderWidth: 1,
+    borderTopColor: '#314c5a',
+    borderBottomColor: '#05090d',
+    borderLeftColor: '#1e3541',
+    borderRightColor: '#1e3541',
+    borderRadius: 7,
+    backgroundColor: '#101923',
   },
   tabLabel: {
-    fontSize: 10,
-    fontWeight: '900',
+    fontFamily: 'TekoBold',
+    fontSize: 14,
     fontStyle: 'italic',
-    letterSpacing: 0,
+    letterSpacing: 0.25,
     textAlign: 'center',
   },
   tutorialOverlay: {

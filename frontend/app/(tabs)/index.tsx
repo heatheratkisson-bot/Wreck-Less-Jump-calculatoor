@@ -20,14 +20,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { getPreferredUnitSystem, savePreferredUnitSystem } from '@/lib/preferences';
 import MeasureScreen from './measure';
 import type { MeasureScreenHandle, Measurements } from './measure';
 import { useBeginnerGuide } from '@/lib/BeginnerGuideContext';
 import type { MotorcycleModel } from '@/lib/motorcycleData';
-import Svg, { Path, Circle, Line, Text as SvgText, G, Polygon, Rect } from 'react-native-svg';
+import Svg, {
+  Path,
+  Circle,
+  Line,
+  Text as SvgText,
+  G,
+  Polygon,
+  Rect,
+} from 'react-native-svg';
 import * as Location from 'expo-location';
 import {
   calculateJumpLocally,
@@ -56,7 +64,6 @@ import {
 export default function Index() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isWideLayout = windowWidth >= 400 && windowWidth > windowHeight;
-  const router = useRouter();
   const { startBeginnerGuide } = useBeginnerGuide();
   // Input states
   const [rampHeight, setRampHeight] = useState('');
@@ -73,13 +80,6 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [showResultsPage, setShowResultsPage] = useState(false);
-  const [pendingGhostTrajectoryParams, setPendingGhostTrajectoryParams] = useState<{
-    speedMph: string;
-    gapFeet: string;
-    rampAngle: string;
-    rampHeightFeet: string;
-    landingHeightFeet: string;
-  } | null>(null);
   const [useMetric, setUseMetric] = useState(false);
   const [inputMethod, setInputMethod] = useState<'manual' | 'measure'>('manual');
   const measureScreenRef = useRef<MeasureScreenHandle>(null);
@@ -212,25 +212,6 @@ export default function Index() {
       };
     }, [])
   );
-
-  useEffect(() => {
-    if (
-      !pendingGhostTrajectoryParams ||
-      showResultsPage ||
-      Platform.OS === 'ios'
-    ) {
-      return;
-    }
-    const timeout = setTimeout(() => {
-      router.push({
-        pathname: '/ghost-ar',
-        params: pendingGhostTrajectoryParams,
-      });
-      setPendingGhostTrajectoryParams(null);
-    }, 350);
-
-    return () => clearTimeout(timeout);
-  }, [pendingGhostTrajectoryParams, router, showResultsPage]);
 
   const handlePacingLocation = useCallback((location: Location.LocationObject) => {
     const config = pacingConfigRef.current;
@@ -796,7 +777,7 @@ export default function Index() {
       placeholder: 'e.g., -3',
       keyboardType: 'numbers-and-punctuation' as const,
       required: false,
-      helperText: 'Optional. Use a negative number if the landing is lower.',
+      helperText: 'Optional. Slide left for a lower landing and right for a higher one.',
       icon: 'arrow-down' as const,
     },
     {
@@ -842,9 +823,10 @@ export default function Index() {
   ];
   const currentInputStep = inputSteps[inputStep];
   const isGapDistanceStep = currentInputStep.key === 'gapDistance';
-  const currentSlider =
-    currentInputStep.key === 'rampHeight'
-      ? {
+  const currentSlider = (() => {
+    switch (currentInputStep.key) {
+      case 'rampHeight':
+        return {
           accessibilityLabel: 'Ramp height',
           min: 0,
           max: useMetric ? 6 : 20,
@@ -855,28 +837,71 @@ export default function Index() {
           ),
           formatValue: (value: number) => `${value.toFixed(1)} ${distanceUnit}`,
           onValueChange: (value: number) => setRampHeight(value.toFixed(1)),
-        }
-      : currentInputStep.key === 'rampAngle'
-        ? {
-            accessibilityLabel: 'Ramp angle',
-            min: 1,
-            max: 89,
-            step: 1,
-            value: Math.min(89, Math.max(1, Number.parseFloat(rampAngle) || 1)),
-            formatValue: (value: number) => `${Math.round(value)}°`,
-            onValueChange: (value: number) => setRampAngle(String(Math.round(value))),
-          }
-        : currentInputStep.key === 'gapDistance'
-          ? {
-              accessibilityLabel: 'Gap distance in feet',
-              min: 0,
-              max: 100,
-              step: 1,
-              value: Math.min(100, Math.max(0, Number.parseFloat(gapDistance) || 0)),
-              formatValue: (value: number) => `${Math.round(value)} ft`,
-              onValueChange: (value: number) => setGapDistance(String(Math.round(value))),
-            }
-          : null;
+        };
+      case 'rampAngle':
+        return {
+          accessibilityLabel: 'Ramp angle',
+          min: 1,
+          max: 89,
+          step: 1,
+          value: Math.min(89, Math.max(1, Number.parseFloat(rampAngle) || 1)),
+          formatValue: (value: number) => `${Math.round(value)}°`,
+          onValueChange: (value: number) => setRampAngle(String(Math.round(value))),
+        };
+      case 'gapDistance':
+        return {
+          accessibilityLabel: 'Gap distance in feet',
+          min: 0,
+          max: 100,
+          step: 1,
+          value: Math.min(100, Math.max(0, Number.parseFloat(gapDistance) || 0)),
+          formatValue: (value: number) => `${Math.round(value)} ft`,
+          onValueChange: (value: number) => setGapDistance(String(Math.round(value))),
+        };
+      case 'landingHeight':
+        return {
+          accessibilityLabel: 'Landing height difference',
+          min: useMetric ? -6 : -20,
+          max: useMetric ? 6 : 20,
+          step: 0.1,
+          value: Math.min(
+            useMetric ? 6 : 20,
+            Math.max(useMetric ? -6 : -20, Number.parseFloat(landingHeight) || 0)
+          ),
+          formatValue: (value: number) =>
+            `${value > 0 ? '+' : ''}${value.toFixed(1)} ${distanceUnit}`,
+          onValueChange: (value: number) => setLandingHeight(value.toFixed(1)),
+        };
+      case 'bikeWeight':
+        return {
+          accessibilityLabel: 'Dirt bike weight',
+          min: 0,
+          max: useMetric ? 227 : 500,
+          step: 1,
+          value: Math.min(
+            useMetric ? 227 : 500,
+            Math.max(0, Number.parseFloat(bikeWeight) || 0)
+          ),
+          formatValue: (value: number) => `${Math.round(value)} ${weightUnit}`,
+          onValueChange: (value: number) => setBikeWeight(String(Math.round(value))),
+        };
+      case 'riderWeight':
+        return {
+          accessibilityLabel: 'Rider weight',
+          min: 0,
+          max: useMetric ? 227 : 500,
+          step: 1,
+          value: Math.min(
+            useMetric ? 227 : 500,
+            Math.max(0, Number.parseFloat(riderWeight) || 0)
+          ),
+          formatValue: (value: number) => `${Math.round(value)} ${weightUnit}`,
+          onValueChange: (value: number) => setRiderWeight(String(Math.round(value))),
+        };
+      default:
+        return null;
+    }
+  })();
   const isSliderStep = currentSlider !== null;
 
   const advanceInputStep = () => {
@@ -1145,7 +1170,6 @@ export default function Index() {
             opacity={0.7}
           />
 
-          {/* The receiving ramp slopes down away from the jump. */}
           <Line
             x1={transformX(landingX)}
             y1={transformY(landingWorldY)}
@@ -1290,7 +1314,12 @@ export default function Index() {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
-            <Path d="M -2 -5 L 2 -6 L 5 -4 L 1 -2 Z" fill="#82B6FF" stroke="#DCE8EF" strokeWidth="0.7" />
+            <Path
+              d="M -2 -5 L 2 -6 L 5 -4 L 1 -2 Z"
+              fill="#82B6FF"
+              stroke="#DCE8EF"
+              strokeWidth="0.7"
+            />
             <Path
               d="M -4 -12 L -1 -7 L 4 -5 M -1 -7 L -7 -5 L -9 -7 M -1 -7 L 3 -2 L 7 1"
               fill="none"
@@ -1622,15 +1651,6 @@ export default function Index() {
               setShowResultsPage(false);
               setResult(null);
             }}
-            onDismiss={() => {
-              if (Platform.OS === 'ios' && pendingGhostTrajectoryParams) {
-                router.push({
-                  pathname: '/ghost-ar',
-                  params: pendingGhostTrajectoryParams,
-                });
-                setPendingGhostTrajectoryParams(null);
-              }
-            }}
           >
             <SafeAreaView style={styles.resultsPage}>
               <View style={styles.resultsPageHeader}>
@@ -1646,7 +1666,13 @@ export default function Index() {
                 >
                   <Ionicons name="arrow-back" size={22} color="#F5FAF8" />
                 </TouchableOpacity>
-                <Text style={styles.resultsPageTitle}>Jump Results</Text>
+                <Image
+                  source={require('../../assets/images/wreckless-results-logo.jpeg')}
+                  style={styles.resultsPageLogo}
+                  resizeMode="contain"
+                  accessible
+                  accessibilityLabel="Wreck-Less Results logo"
+                />
                 <View style={styles.resultsBackButtonPlaceholder} />
               </View>
               <ScrollView
@@ -1673,27 +1699,6 @@ export default function Index() {
               {/* Trajectory Visualization */}
               {renderTrajectory()}
               <View style={styles.resultsControlsRow}>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel="Open Ghost Trajectory"
-                  accessibilityHint="Opens the camera overlay with this calculated jump path."
-                  onPress={() => {
-                    const feet = (value: number) =>
-                      result.input_data.unit_system === 'metric' ? value * 3.28084 : value;
-                    setPendingGhostTrajectoryParams({
-                      speedMph: String(result.required_speed_mph),
-                      gapFeet: String(feet(result.input_data.gap_distance)),
-                      rampAngle: String(result.input_data.ramp_angle),
-                      rampHeightFeet: String(feet(result.input_data.ramp_height || 0)),
-                      landingHeightFeet: String(feet(result.input_data.landing_height || 0)),
-                    });
-                    setShowResultsPage(false);
-                  }}
-                  style={styles.ghostArButton}
-                >
-                  <Ionicons name="camera-outline" size={19} color="#07111E" />
-                  <Text style={styles.ghostArButtonText}>Ghost Trajectory</Text>
-                </TouchableOpacity>
                 <TouchableOpacity
                   accessibilityRole="button"
                   accessibilityLabel={isPacingActive ? 'Stop speed guidance' : 'Start speed guidance'}
@@ -1811,12 +1816,6 @@ export default function Index() {
                 )}
               </ScrollView>
               <View style={styles.emergencyFooter}>
-                <View style={styles.emergencyDisclaimer}>
-                  <Ionicons name="alert-circle-outline" size={16} color="#E8B86D" />
-                  <Text style={styles.emergencyDisclaimerText}>
-                    This feature is NOT a substitute for calling 911. In emergencies, call 911 directly.
-                  </Text>
-                </View>
                 <View style={styles.emergencyActionsRow}>
                   <TouchableOpacity
                     style={styles.callHelpButton}
@@ -2044,7 +2043,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#07111E',
+    backgroundColor: '#080d12',
   },
   keyboardView: {
     flex: 1,
@@ -2055,9 +2054,12 @@ const styles = StyleSheet.create({
     minHeight: 68,
     paddingVertical: 4,
     paddingHorizontal: 10,
-    backgroundColor: '#101E2C',
+    backgroundColor: '#0b151d',
     borderBottomWidth: 2,
-    borderBottomColor: '#31566A',
+    borderBottomColor: '#244d64',
+    shadowColor: '#38bdf8',
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
   },
   sloganCopy: {
     flex: 1,
@@ -2074,9 +2076,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#344357',
-    borderRadius: 10,
-    backgroundColor: '#111E2D',
+    borderColor: '#00d8ff',
+    borderRadius: 8,
+    backgroundColor: '#101b24',
   },
   sloganFirstLine: {
     color: '#F5FAF8',
@@ -2105,10 +2107,10 @@ const styles = StyleSheet.create({
     gap: 2,
     padding: 3,
     minHeight: 46,
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: '#31566A',
-    backgroundColor: '#13293A',
+    backgroundColor: '#101923',
   },
   inputMethodTab: {
     flex: 1,
@@ -2119,18 +2121,24 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   inputMethodTabActive: {
-    backgroundColor: '#C8D95A',
-    borderWidth: 1,
-    borderColor: '#EFF59B',
+    backgroundColor: '#b7d82b',
+    borderWidth: 2,
+    borderTopColor: '#e8ff79',
+    borderBottomColor: '#667a16',
+    borderLeftColor: '#8faa20',
+    borderRightColor: '#8faa20',
+    borderRadius: 6,
   },
   inputMethodTitle: {
-    color: '#A8B5C4',
-    fontSize: 14,
-    fontWeight: '700',
+    color: '#aebbc4',
+    fontFamily: 'TekoBold',
+    fontSize: 18,
+    fontStyle: 'italic',
+    letterSpacing: 0.7,
     textAlign: 'center',
   },
   inputMethodTextActive: {
-    color: '#07111E',
+    color: '#091016',
   },
   inputMethodContent: {
     flex: 1,
@@ -2149,7 +2157,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 6,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   wideScrollView: {
     flex: 1,
@@ -2187,18 +2195,20 @@ const styles = StyleSheet.create({
   toggleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0D1A29',
-    borderColor: '#26384B',
+    backgroundColor: '#0b151f',
+    borderColor: '#2b4d60',
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 8,
     padding: 3,
     marginBottom: 0,
     gap: 2,
   },
   unitLabel: {
-    color: '#A8B5C4',
-    fontSize: 13,
-    fontWeight: '700',
+    color: '#aebbc4',
+    fontFamily: 'TekoBold',
+    fontSize: 16,
+    fontStyle: 'italic',
+    letterSpacing: 0.5,
     paddingHorizontal: 5,
   },
   toggleButton: {
@@ -2209,15 +2219,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 15,
+    borderRadius: 6,
   },
   toggleActive: {
-    backgroundColor: '#A6D608',
+    backgroundColor: '#b7d82b',
   },
   toggleText: {
-    color: '#A8B5C4',
-    fontWeight: '600',
-    fontSize: 14,
+    color: '#aebbc4',
+    fontFamily: 'TekoBold',
+    fontSize: 17,
+    fontStyle: 'italic',
   },
   toggleTextActive: {
     color: '#07111E',
@@ -2236,9 +2247,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   inputWizardStepText: {
-    color: '#A8B5C4',
-    fontSize: 13,
-    fontWeight: '700',
+    color: '#c2d1d8',
+    fontFamily: 'TekoBold',
+    fontSize: 17,
+    fontStyle: 'italic',
+    letterSpacing: 0.8,
     textAlign: 'center',
   },
   inputWizardProgressTrack: {
@@ -2247,27 +2260,35 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     borderWidth: 1,
     borderColor: '#31566A',
-    backgroundColor: '#13293A',
+    backgroundColor: '#0d1822',
   },
   inputWizardProgressFill: {
     height: '100%',
     borderRadius: 3,
-    backgroundColor: '#A6D608',
+    backgroundColor: '#b7d82b',
+    shadowColor: '#b7d82b',
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
   },
   inputWizardCard: {
     flex: 1,
     minHeight: 250,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#13273A',
-    borderColor: '#547D91',
+    backgroundColor: '#101c27',
+    borderColor: '#3aaed0',
     borderWidth: 3,
-    borderRadius: 16,
+    borderTopColor: '#7bdcff',
+    borderRightColor: '#1d5d78',
+    borderBottomColor: '#4d7182',
+    borderLeftColor: '#4d7182',
+    borderRadius: 12,
     paddingHorizontal: 18,
     paddingVertical: 12,
     shadowColor: '#3CC9FF',
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 8,
   },
   inputSliderCard: {
     minHeight: 0,
@@ -2277,36 +2298,49 @@ const styles = StyleSheet.create({
   inputWizardTitle: {
     marginTop: 4,
     color: '#F5FAF8',
-    fontSize: 28,
-    fontWeight: '900',
+    fontFamily: 'TekoBold',
+    fontSize: 34,
     fontStyle: 'italic',
+    letterSpacing: 1,
     textAlign: 'center',
   },
   inputWizardDescription: {
     marginTop: 5,
     marginBottom: 26,
-    color: '#9AADB0',
-    fontSize: 13,
+    color: '#98acb4',
+    fontFamily: 'TekoBold',
+    fontSize: 16,
+    fontStyle: 'italic',
   },
   inputWizardLabel: {
     alignSelf: 'stretch',
     marginBottom: 8,
-    color: '#D5DDE6',
-    fontSize: 15,
-    fontWeight: '700',
+    color: '#d5e2e7',
+    fontFamily: 'TekoBold',
+    fontSize: 19,
+    fontStyle: 'italic',
+    letterSpacing: 0.5,
   },
   inputWizardInput: {
     alignSelf: 'stretch',
     minHeight: 60,
-    backgroundColor: '#0A1522',
-    borderRadius: 10,
+    backgroundColor: '#071019',
+    borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    fontSize: 24,
-    color: '#F3F6F9',
+    fontFamily: 'TekoBold',
+    fontSize: 34,
+    fontStyle: 'italic',
+    color: '#dff8ff',
     textAlign: 'center',
-    borderWidth: 1,
-    borderColor: '#A6D608',
+    borderWidth: 2,
+    borderTopColor: '#73dfff',
+    borderBottomColor: '#b7d82b',
+    borderLeftColor: '#3b89a4',
+    borderRightColor: '#3b89a4',
+    shadowColor: '#00d8ff',
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
   },
   inputSliderContainer: {
     alignSelf: 'stretch',
@@ -2321,9 +2355,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inputSliderValue: {
-    color: '#D4F66E',
-    fontSize: 34,
-    fontWeight: '900',
+    color: '#dff56b',
+    fontFamily: 'TekoBold',
+    fontSize: 44,
+    fontStyle: 'italic',
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
   },
@@ -2376,9 +2411,10 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
   },
   inputWizardResetText: {
-    color: '#A8B5C4',
-    fontSize: 15,
-    fontWeight: '700',
+    color: '#c3d0d5',
+    fontFamily: 'TekoBold',
+    fontSize: 18,
+    fontStyle: 'italic',
   },
   inputWizardNextButton: {
     minHeight: 68,
@@ -2386,13 +2422,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: '#D0D45A',
+    backgroundColor: '#b7d82b',
     borderWidth: 3,
-    borderTopColor: '#EEF08B',
-    borderBottomColor: '#777B31',
-    borderLeftColor: '#B7BA4D',
-    borderRightColor: '#B7BA4D',
-    borderRadius: 10,
+    borderTopColor: '#efff96',
+    borderBottomColor: '#667a16',
+    borderLeftColor: '#94b421',
+    borderRightColor: '#94b421',
+    borderRadius: 8,
     paddingHorizontal: 18,
     paddingVertical: 14,
     marginBottom: 8,
@@ -2407,8 +2443,10 @@ const styles = StyleSheet.create({
   },
   inputWizardNextText: {
     color: '#07111E',
-    fontSize: 20,
-    fontWeight: '900',
+    fontFamily: 'TekoBold',
+    fontSize: 28,
+    fontStyle: 'italic',
+    letterSpacing: 1,
   },
   wideFormContainer: {
     gap: 6,
@@ -2594,24 +2632,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   resultsContainer: {
-    backgroundColor: 'rgba(20, 37, 44, 0.76)',
+    backgroundColor: '#000000',
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
   },
   resultsPage: {
     flex: 1,
-    backgroundColor: '#07111E',
+    backgroundColor: '#000000',
   },
   resultsPageHeader: {
-    minHeight: 58,
+    minHeight: 108,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: '#0B1828',
+    backgroundColor: '#000000',
     borderBottomWidth: 1,
     borderBottomColor: '#35515A',
+  },
+  resultsPageLogo: {
+    width: 170,
+    height: 95,
   },
   resultsBackButton: {
     width: 40,
@@ -2620,11 +2662,6 @@ const styles = StyleSheet.create({
   },
   resultsBackButtonPlaceholder: {
     width: 40,
-  },
-  resultsPageTitle: {
-    color: '#F5FAF8',
-    fontSize: 17,
-    fontWeight: '800',
   },
   resultsPageScroll: {
     flex: 1,
@@ -2654,7 +2691,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   trajectoryContainer: {
-    backgroundColor: 'rgba(14, 31, 38, 0.94)',
+    backgroundColor: '#000000',
     borderWidth: 1,
     borderColor: '#35515A',
     borderRadius: 16,
@@ -2781,29 +2818,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: 'center',
   },
-  ghostArButtonText: {
-    color: '#07111E',
-    fontSize: 17,
-    fontWeight: '800',
-    flexShrink: 1,
-    textAlign: 'center',
-  },
   resultsControlsRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    gap: 10,
     marginBottom: 4,
-  },
-  ghostArButton: {
-    flex: 1,
-    minHeight: 48,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    backgroundColor: '#A6D608',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
   },
   logSimulatedJumpHint: {
     color: '#9AADB0',
@@ -2984,31 +3002,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
     paddingBottom: 8,
-    backgroundColor: '#0B1828',
+    backgroundColor: '#000000',
     borderTopWidth: 1,
     borderTopColor: '#35515A',
   },
   emergencyActionsRow: {
     flexDirection: 'row',
     gap: 10,
-  },
-  emergencyDisclaimer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(232, 184, 109, 0.1)',
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(232, 184, 109, 0.3)',
-  },
-  emergencyDisclaimerText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#F2D39A',
-    lineHeight: 16,
-    fontWeight: '600',
   },
   callHelpButton: {
     backgroundColor: '#FF1744',
